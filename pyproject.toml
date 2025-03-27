@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "NuECS"
+description = "A ETL system for NuECS project"
+authors = [{ name = "CSMao0", email = "CSMao0@winbond.com" }]
+readme = "README.md"
+version = "0.0.1"
+requires-python = ">=3.9"
+dependencies = [
+    "PyYAML==6.0.1",
+    "uvicorn==0.34.0",
+    "fastapi==0.115.8",
+    "dotenv==0.9.9",
+    "loguru==0.7.3",
+    "python-multipart~=0.0.20",
+    "langchain-openai==0.1.17",
+    "langchain-text-splitters==0.2.4",
+    "langchain-community==0.2.17",
+    "azure-ai-documentintelligence",
+    "azure-identity==1.17.1",
+    "azure-search-documents==11.5.1",
+    "typer==0.12.5",
+    "SQLAlchemy==2.0.32",
+    "tzdata",
+    "PyPDF2==3.0.1",
+    "pillow==10.4.0",
+    "pycryptodome",
+    "markdownify==0.13.1",
+    "Jinja2==3.1.4",
+    "pymupdf4llm==0.0.17",
+    "pyodbc",
+    "comtypes",
+    "pywin32",
+    "apscheduler==3.11.0",
+    "pydantic-settings"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[project.scripts]
+digest-cli = "doc2rag.cli.digest:app"
+ai-search-cli = "doc2rag.cli.ai_search:app"
+rag-cli = "doc2rag.cli.single_rag:app"
+sqldb-cli = "doc2rag.cli.sqldb_util:app"
+file-initialize-flow = "doc2rag.pipeline.file_flows:file_initialize_flow"
+file-processing-flow = "doc2rag.pipeline.file_flows:file_processing_flow"
+word-scan-flow = "doc2rag.pipeline.file_flows:word_scan_flow"
+ppt-scan-flow = "doc2rag.pipeline.file_flows:ppt_scan_flow"
+excel-scan-flow = "doc2rag.pipeline.file_flows:excel_scan_flow"
+di-flow = "doc2rag.pipeline.file_flows:di_flow"
+delete-flow = "doc2rag.pipeline.file_flows:delete_flow"
+ais-upload-flow = "doc2rag.pipeline.ais_flows:upload_flow"
+ais-delete-flow = "doc2rag.pipeline.ais_flows:delete_flow"
+backup-flow = "doc2rag.pipeline.backup_flows:daily_backup_flow"

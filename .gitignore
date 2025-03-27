@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+result
+test_cases
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -169,3 +171,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+.idea
+.git
+__pycache__
+*.env

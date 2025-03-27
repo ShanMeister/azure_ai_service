@@ -1,7 +1,7 @@
 import os
 import sys
 import uvicorn
-
+import asyncio
 from loguru import logger
 from fastapi import FastAPI, File, UploadFile, Depends, HTTPException, Query, Form
 from dotenv import load_dotenv
@@ -10,19 +10,35 @@ from typing import Optional, Union
 from pydantic import BaseModel, constr
 
 from app.enums.action_enum import ActionEnum
+from app.enums.prompt_enum import PromptEnum
 from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel
 from app.msg_format.request_model import ContractSearchRequestModel
+from app.use_case.pdf_processing import PDFProcessingUseCase
+from src.doc2rag.pipeline.file_flows import file_initialize_flow
+from app.utils.file_process import FileProcessClass
+from app.use_case.sys_prompt import SysPromptClass
+from pipeline import run_ai_service_pipeline
+from app.use_case.rag_processing import RAGUseCase
+# from contextlib import asynccontextmanager
+# from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+# scheduler = AsyncIOScheduler()
 load_dotenv('conf/.env')
 app = FastAPI()
-
 logger.remove()
 logger.add(sys.stdout, level=os.getenv('LOG_LEVEL'))
+
+pdf_use_case_object = PDFProcessingUseCase()
+rag_use_case_object = RAGUseCase()
+file_process_object = FileProcessClass()
+sys_prompt_object = SysPromptClass()
+
+file_initialize_flow()
 
 # file type constraints
 allowed_extensions = {".pdf", ".docx"}
 
-@app.post("/", response_model=Union[ASSuccessResponseModel, ASErrorResponseModel])
+@app.post("/ai_service", response_model=Union[ASSuccessResponseModel, ASErrorResponseModel])
 async def auto_ai_service(
     action: ActionEnum = Form(...),
     question: Optional[constr(max_length=500)] = Form(None),
@@ -51,8 +67,9 @@ async def auto_ai_service(
         )
 
     # Validate file size (max 10MB)
+    pdf_bytes = await file.read()
     try:
-        file_size = len(await file.read())  # Read file to check size
+        file_size = len(pdf_bytes)  # Read file to check size
         await file.seek(0)  # Reset pointer after reading
     except Exception as e:
         logger.error(f"Error reading file: {e}")
@@ -67,7 +84,7 @@ async def auto_ai_service(
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
     question_is_empty = False
-    if question is None or question is "": question_is_empty = True
+    if question is None or question == "": question_is_empty = True
 
     # Check if the action is 'qna' and enforce question as required
     if action == ActionEnum.qna and question_is_empty is True:
@@ -99,13 +116,49 @@ async def auto_ai_service(
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
 
+    logger.info(f"Received file: {file.filename} for action: {action}")
     # Simulated processing result
     if action == ActionEnum.summarize:
-        result = "This contract outlines the payment terms, including deadlines and renewal conditions..."
+        save_file_path = r"C:\projects\NuECS\test_cases\test_07\source\csmtest20250320\text_image\wait"
+        os.makedirs(save_file_path, exist_ok=True)
+        save_path = os.path.join(save_file_path, file.filename)
+        await file_process_object.save_upload_file(file, save_path)
+        merged_bundle = await run_ai_service_pipeline()
+        if merged_bundle is None and merged_bundle == "":
+            result = None
+            logger.error(f" Fail to get summarize result from AOAI: {result}")
+            # raise HTTPException(status_code=500, detail="Error processing the markdown file, return empty file.")
+        else:
+            result = sys_prompt_object.set_prompt(merged_bundle, PromptEnum.summarize, question)
+            print(result)
+            logger.info(f" Success to get summarize result from AOAI: {result}")
     elif action == ActionEnum.translate:
-        result = "我是翻譯機器人"
+        save_file_path = r"C:\projects\NuECS\test_cases\test_07\source\csmtest20250320\text_image\wait"
+        os.makedirs(save_file_path, exist_ok=True)
+        save_path = os.path.join(save_file_path, file.filename)
+        await file_process_object.save_upload_file(file, save_path)
+        merged_bundle = await run_ai_service_pipeline()
+        if merged_bundle is None and merged_bundle == "":
+            result = None
+            logger.error(f" Fail to get translate result from AOAI: {result}")
+            # raise HTTPException(status_code=500, detail="Error processing the markdown file, return empty file.")
+        else:
+            result = sys_prompt_object.set_prompt(merged_bundle, PromptEnum.translate, question)
+            print(result)
+            logger.info(f" Success to get translate result from AOAI: {result}")
     else:
-        result = "This is a smartest Q&A chatbot."
+        save_file_path = r"C:\projects\NuECS\test_cases\test_07\source\csmtest20250320\text_image\wait"
+        os.makedirs(save_file_path, exist_ok=True)
+        save_path = os.path.join(save_file_path, file.filename)
+        await file_process_object.save_upload_file(file, save_path)
+        merged_bundle = await run_ai_service_pipeline()
+        if merged_bundle is None and merged_bundle == "":
+            result = None
+            logger.error(f" Fail to get qna result from AOAI: {result}")
+            # raise HTTPException(status_code=500, detail="Error processing the markdown file, return empty file.")
+        else:
+            result = sys_prompt_object.set_prompt(merged_bundle, PromptEnum.qna, question)
+            logger.info(f" Success to get qna result from AOAI: {result}")
 
     return ASSuccessResponseModel(
         status="success",
@@ -120,17 +173,8 @@ async def auto_ai_service(
 @app.post("/contract_search", response_model=Union[CSSuccessResponseModel, CSErrorResponseModel])
 async def contract_search(request: ContractSearchRequestModel):  # Use model here
     keyword = request.keyword
-    # Simulated contract search logic
-    # In a real-world application, this would involve querying a database or external service
 
-    contracts = [
-        {"contractId": "12345", "relevanceScore": 0.92},
-        {"contractId": "67890", "relevanceScore": 0.88},
-        {"contractId": "11223", "relevanceScore": 0.75},
-    ]
-
-    # Filter contracts based on the keyword (for simulation purposes, we assume all contracts match)
-    matching_contracts = [contract for contract in contracts if contract["contractId"] == keyword]
+    matching_contracts = rag_use_case_object.run_rag_flow(keyword, 1)
 
     # If no matching contracts are found
     if not matching_contracts:
@@ -152,6 +196,18 @@ async def contract_search(request: ContractSearchRequestModel):  # Use model her
 @app.get("/health-check")
 async def health_check():
     return {"status": "Alive"}
+
+
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     logger.info("Application startup: initializing scheduler...")
+#     await asyncio.sleep(1)
+#     schedule_pipeline()
+#     yield
+#     logger.info("Application shutdown: shutting down scheduler...")
+#     scheduler.shutdown(wait=False)
+#
+# app.router.lifespan_context = lifespan
 
 if __name__ == '__main__':
     uvicorn.run(

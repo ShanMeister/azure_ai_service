@@ -1,7 +1,8 @@
 from enum import Enum
 
-class ActionEnum(str, Enum):
+class PromptEnum(str, Enum):
     summarize = "summarize"
     translate = "translate"
     qna = "qna"
     chat = "chat"
+    search = "search"
