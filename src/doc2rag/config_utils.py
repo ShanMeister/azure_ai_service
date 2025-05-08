@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 import yaml
+from dotenv import load_dotenv
+load_dotenv('app/conf/.env')
 
 
 class TiktokenCacheDirNotExistsError(Exception):
@@ -384,31 +386,51 @@ class EmbeddingConfig:
     }
 
     def __init__(self) -> None:
-        self.config = RootConfig().config
+        self.config = RootConfig().config["embedding"]
 
     @property
     def model(self) -> str:
-        return self.config["embedding"]["model"]
+        return self.config["model"]
 
     @property
     def deployment(self) -> str:
-        return self.config["embedding"]["model"]
+        return self.config["model"]
 
     @property
     def api_version(self) -> str:
-        return self.config["embedding"]["api_version"]
+        return self.config["api_version"]
 
     @property
     def api_key(self) -> str:
-        return self.config["embedding"]["api_key"]
+        return self.config["api_key"]
 
     @property
     def endpoint(self) -> str:
-        return self.config["embedding"]["endpoint"]
+        return self.config["endpoint"]
 
     @property
     def dimension(self) -> int:
         return self.d_embedding_dimension[self.model]
+
+
+class EmbeddingPoolConfig:
+
+    def __init__(self):
+        self.config = RootConfig().config["embedding"]
+        self._n_embeddings = self.config["n_embeddings"]
+        self._embedding_pool = []
+        for i in range(self.n_embeddings):
+            embedding_name = f"embedding_{i + 1}"
+            embedding_config = EmbeddingConfig(embedding_name=embedding_name)
+            self._embedding_pool.append(embedding_config)
+
+    @property
+    def n_embeddings(self) -> int:
+        return self._n_embeddings
+
+    @property
+    def embedding_pool(self) -> list[EmbeddingConfig]:
+        return self._embedding_pool
 
 
 class AzureAISearchConfig:

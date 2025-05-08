@@ -1,3 +1,10 @@
+import sys
+import asyncio
+
+# https://stackoverflow.com/questions/63860576/asyncio-event-loop-is-closed-when-using-asyncio-run
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from doc2rag.config_utils import SQLTypeConfig
 
 # Map SQL types to corresponding agent classes
@@ -24,6 +31,24 @@ def upload_flow():
 
     sql_agent = SQLAgent()
     UploadController(sql_agent).upload()
+
+def upload_async_flow():
+    from doc2rag.config_utils import EmbeddingPoolConfig, AzureAISearchConfig
+    from doc2rag.ai_search_async import main as upload_async_main
+
+    sql_agent = SQLAgent()
+    embedding_pool_config = EmbeddingPoolConfig()
+    embedding_pool = embedding_pool_config.embedding_pool
+    ais_config = AzureAISearchConfig()
+    loop = asyncio.get_event_loop()
+    if loop.is_running():
+        # If an event loop is already running, use asyncio.create_task()
+        asyncio.create_task(
+            upload_async_main(sql_agent, embedding_pool, ais_config)
+        )
+    else:
+        # If no event loop is running, start a new one
+        asyncio.run(upload_async_main(sql_agent, embedding_pool, ais_config))
 
 
 def delete_flow():

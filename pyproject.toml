@@ -35,7 +35,8 @@ dependencies = [
     "comtypes",
     "pywin32",
     "apscheduler==3.11.0",
-    "pydantic-settings"
+    "pydantic-settings",
+    "pymysql==1.1.1"
 ]
 
 [project.optional-dependencies]

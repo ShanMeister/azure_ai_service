@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from loguru import logger
 from dotenv import load_dotenv
-load_dotenv('conf/.env')
+load_dotenv('app/conf/.env')
 
 from src.doc2rag.config_utils import PathConfig
 

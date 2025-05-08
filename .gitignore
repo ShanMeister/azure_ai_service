@@ -176,3 +176,5 @@ cython_debug/
 .git
 __pycache__
 *.env
+config_wec_laptop.yml
+.test_cases/

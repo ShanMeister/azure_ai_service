@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from dotenv import load_dotenv
 from loguru import logger
 # from src.doc2rag.rag import RAGAgent
@@ -15,7 +15,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import AzureOpenAIEmbeddings
 
-load_dotenv('conf/.env')
+load_dotenv('app/conf/.env')
 
 class RAGUseCase:
     def __init__(self):
@@ -26,46 +26,44 @@ class RAGUseCase:
             azure_endpoint=os.getenv('EMBEDDING_ENDPOINT'),
             api_key=os.getenv('EMBEDDING_API_KEY'),
         )
-        self.vector_store = self.initialize_vector_store()
-        pass
+        self._vector_store: Optional[AzureSearch] = None
 
-    def run_rag_flow(self, question: str, top_k: int):
+    @property
+    def vector_store(self) -> AzureSearch:
+        if self._vector_store is None:
+            self._vector_store = AzureSearch(
+                azure_search_endpoint=os.getenv('AS_ENDPOINT'),
+                azure_search_key=os.getenv('AS_API_KEY'),
+                index_name=os.getenv('AS_INDEX_NAME'),
+                embedding_function=self.embedding.embed_query,
+                semantic_configuration_name="my-semantic-config",
+            )
+        return self._vector_store
+
+    def run_rag_flow(self, question: str, top_k: int, score_threshold: float):
         """
-        Excute entire RAG process, retrun top-1 similarity file(id) list based on input question.
+        Execute entire RAG process, return top-1 similarity file(id) list based on input question.
 
         :param question: input question from user
         :return: get top-3 similarity file(id) list
         """
         try:
-            documents = self.retrieve_documents(self.vector_store, question, "semantic_hybrid", -1, top_k)
+            documents = self.retrieve_documents_with_score(question, "semantic_hybrid", -1, top_k, score_threshold)
 
             if not documents:
                 logger.warning("No relevant documents found.")
                 return None
-            print(documents)
+
             documents_as_dicts = [
                 {"metadata": doc.metadata, "content": doc.page_content} for doc in documents
             ]
             logger.info(f"Retrieved {len(documents)} documents")
-            print(documents_as_dicts)
             return documents_as_dicts
         except Exception as e:
             logger.error(f"Error in run_rag_flow: {str(e)}")
             return None
 
-    def initialize_vector_store(self) -> AzureSearch:
-        return AzureSearch(
-            azure_search_endpoint=os.getenv('AS_ENDPOINT'),
-            azure_search_key=os.getenv('AS_API_KEY'),
-            index_name=os.getenv('AS_INDEX_NAME'),
-            embedding_function=self.embedding.embed_query,
-            semantic_configuration_name="my-semantic-config",
-        )
-
-    def retrieve_documents(
-            self,
-            vector_store: AzureSearch, question: str, search_type: str, file_id: int, top_k: int
-    ) -> List[Document]:
+    def retrieve_documents_with_top_k(self, question: str, search_type: str, file_id: int, top_k: int) -> List[Document]:
         # search_type: "similarity", "hybrid", "semantic_hybrid"
         search_option = {
             # "top_k": top_k,
@@ -76,25 +74,41 @@ class RAGUseCase:
             search_option["filters"] = f"file_id eq {file_id}"
 
         # retriever = vector_store.as_retriever(search_kwargs=search_option, k=top_k)
-        documents = vector_store.similarity_search(query=question,k=top_k)
+        documents = self.vector_store.similarity_search(query=question,k=top_k)
         # documents = retriever.invoke(question)
         return documents
 
+    def retrieve_documents_with_score(
+            self,
+            question: str,
+            search_type: str = "similarity",
+            file_id: int = -1,
+            top_k: int = 10,
+            score_threshold: float = 0.8
+    ) -> List[Document]:
+        filters = f"file_id eq {file_id}" if file_id != -1 else None
+
+        # if search_type == "similarity":
+        #     results = self.vector_store.similarity_search_with_score(query=question, k=top_k)
+        # elif search_type == "hybrid":
+        #     results = self.vector_store.hybrid_search_with_score(query=question, k=top_k, filters=filters)
+        # elif search_type == "semantic_hybrid":
+        #     results = self.vector_store.semantic_hybrid_search_with_score(query=question, k=top_k, filters=filters)
+        # else:
+        #     raise ValueError(f"Unknown search_type: {search_type}")
+        results = self.vector_store.similarity_search_with_score(query=question, k=top_k)
+
+        # 篩選符合 score 門檻的結果
+        filtered_docs = [doc for doc, score in results if score >= score_threshold]
+        return filtered_docs
+
     def get_documents_from_ais(
             self,
-            question: str, file_id: int, top_k: int
-    ) -> List[Document]:
-        vector_store = self.initialize_vector_store()
-        return self.retrieve_documents(vector_store, question, "semantic_hybrid", file_id, top_k)
+            question: str, file_id: int, top_k: int, score_threshold: float) -> List[Document]:
+        return self.retrieve_documents_with_score(question, "semantic_hybrid", file_id, top_k, score_threshold)
 
-    def get_provided_content(
-            self,
-            question: str, file_id: int, top_k: int
-    ) -> str:
-        vector_store = self.initialize_vector_store()
-        documents = self.retrieve_documents(
-            vector_store, question, "semantic_hybrid", file_id, top_k
-        )
+    def get_provided_content(self, question: str, file_id: int, top_k: int, score_threshold: float) -> str:
+        documents = self.retrieve_documents_with_score(question, "semantic_hybrid", file_id, top_k, score_threshold)
         if not documents:
             return "No supporting information found."
 
