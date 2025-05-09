@@ -46,7 +46,7 @@ class SysPromptClass:
                 You are a legal expert specializing in contract translation.
 
                 TASK:
-                You always provide fact-based information, and would never make anything up. Translate the following text, if the test is in english, translate it into traditional chinese, otherwise, translate it into english.
+                You always provide fact-based information, and would never make anything up. Translate the following text, translate it into traditional chinese, except the text are already in traditional chinese.
 
                 CONTEXT:
                 ```markdown

@@ -52,7 +52,7 @@ class AISearchRepository:
             doc['content_vector'] = await self.generate_embedding(doc["content"])
             doc['@search.action'] = 'upload'
             result = await self.client.upload_documents(documents=[doc])
-            logger.info(f"Uploaded document result: {result}")
+            logger.info(f"Uploaded document result to Azure Search: {result}")
         except Exception as e:
             logger.exception("Upload document to Azure Search failed")
 
@@ -63,7 +63,7 @@ class AISearchRepository:
                 doc['content_vector'] = await self.generate_embedding(doc["content"])
                 doc['@search.action'] = 'upload'
             result = await self.client.upload_documents(documents=docs)
-            logger.info(f"Bulk upload result: {result}")
+            logger.info(f"Bulk upload result to Azure Search: {result}")
         except Exception as e:
             logger.exception("Bulk upload to Azure Search failed")
 
@@ -71,6 +71,6 @@ class AISearchRepository:
         """Delete a document from Azure Search by its id."""
         try:
             result = await self.client.delete_documents(documents=[{"id": id}])
-            logger.info(f"Deleted document result: {result}")
+            logger.info(f"Deleted document result from Azure Search: {result}")
         except Exception as e:
             logger.exception("Delete document from Azure Search failed")

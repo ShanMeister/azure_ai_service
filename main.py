@@ -15,7 +15,7 @@ from app.enums.action_enum import ActionEnum, RealTimeActionEnum
 from app.enums.prompt_enum import PromptEnum
 from app.enums.search_enum import SearchTypeEnum, SearchThresholdEnum
 from app.enums.schema_enum import DocumentRecordCreate, DocumentRecordUpdate
-from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel, RTASSuccessResponseModel, RTASErrorResponseModel, DRSuccessResponseModel, DRErrorResponseModel
+from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel, RTASSuccessResponseModel, RTASErrorResponseModel, DRSuccessResponseModel, DRErrorResponseModel, AIServiceResultModel
 from src.doc2rag.pipeline.file_flows import file_initialize_flow
 from app.utils.file_process import FileProcessClass
 from app.use_case.sys_prompt import SysPromptClass
@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
     # 關閉資料庫連線
     if hasattr(app.state, "db"):
         app.state.db._engine.dispose()
-        logger.info("🔌 Database connection closed.")
+        logger.info("Database connection closed.")
 
 
 # === FastAPI App ===
@@ -70,7 +70,7 @@ sys_prompt_object = SysPromptClass()
 })
 async def auto_ai_service(
     system_name: SystemEnum = Form(...),
-    action: ActionEnum = Form(...),
+    action: Optional[ActionEnum] = Form(None),
     account_id: str = Form(...),
     document_id: str = Form(...),
     document_type: Optional[str] = Form(None),
@@ -125,25 +125,40 @@ async def auto_ai_service(
     if not chat_id or chat_id == '':
         chat_id = str(uuid.uuid4())
 
-    if action == ActionEnum.summarize:
-        result, preprocessed_data = await handle_action(file, PromptEnum.summarize)
-    elif action == ActionEnum.translate:
-        result, preprocessed_data = await handle_action(file, PromptEnum.translate)
-    else:
-        result, preprocessed_data = await handle_action(file, PromptEnum.qna)
+    try:
+        current_step = "summarize"
+        summarized_result, _ = await handle_action(file, PromptEnum.summarize)
+        await file.seek(0)
 
-    if not result:
+        current_step = "translate"
+        translated_result, _ = await handle_action(file, PromptEnum.translate)
+        await file.seek(0)
+
+        current_step = "qna"
+        qna_result, preprocessed_data = await handle_action(file, PromptEnum.qna)
+
+    except Exception as e:
+        logger.error(f"LLM service failed during {current_step}: {e}")
         return ASErrorResponseModel(
             status="error",
-            action=action.value,
-            error_message="Empty response from LLM service. Please try again later.",
+            action=current_step,
+            error_message=f"Error while processing '{current_step}' service.",
+            error_code=500,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+
+    if not any([summarized_result, translated_result, qna_result]):
+        return ASErrorResponseModel(
+            status="error",
+            action="all",
+            error_message="Empty response from AOAI service. Please try again later.",
             error_code=500,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
 
     # Insert contract record into DB
+    session: Session = app.state.db.get_session()
     try:
-        session: Session = app.state.db.get_session()
         doc_repo = DocumentRepository(session)
         ai_search_use_case = AISearchUseCase()
         existing_doc = doc_repo.get_document(document_id)
@@ -152,9 +167,9 @@ async def auto_ai_service(
             old_ai_search_id = existing_doc.ai_search_id
             update_data = DocumentRecordUpdate(
                 preprocessed_content=preprocessed_data,
-                translated_context=result if action == ActionEnum.translate else existing_doc.translated_context,
-                summarized_context=result if action == ActionEnum.summarize else existing_doc.summarized_context,
-                qna_context=result if action == ActionEnum.qna else existing_doc.qna_context,
+                translated_context=translated_result,
+                summarized_context=summarized_result,
+                qna_context=qna_result,
                 updated_by=account_id
             )
             doc_repo.update_document(document_id, update_data)
@@ -173,9 +188,9 @@ async def auto_ai_service(
                 ai_search_id=ai_search_id,
                 doc_content=None,
                 preprocessed_content=preprocessed_data,
-                translated_context=result if action == ActionEnum.translate else None,
-                summarized_context=result if action == ActionEnum.summarize else None,
-                qna_context=result if action == ActionEnum.qna else None,
+                translated_context=translated_result,
+                summarized_context=summarized_result,
+                qna_context=qna_result,
                 created_by=account_id,
                 updated_by=account_id
             )
@@ -202,11 +217,15 @@ async def auto_ai_service(
 
     return ASSuccessResponseModel(
         status="success",
-        action=action.value,
+        action=None,
         account_id=account_id,
         document_id=document_id,
         document_type=document_type if document_type else None,
-        message_response=result,
+        message_response=AIServiceResultModel(
+            summarize=summarized_result,
+            translate=translated_result,
+            qna=qna_result
+        ),
         file_name=file.filename,
         response_language=response_language,
         timestamp=datetime.utcnow().isoformat() + "Z"
@@ -457,16 +476,17 @@ async def handle_action(file: UploadFile, prompt_enum: PromptEnum):
         await file_process_object.save_upload_file(file, save_path)
 
         merged_bundle = await run_ai_service_pipeline()
-        if not merged_bundle and merged_bundle == "":
-            logger.error(f"Fail to get result from AOAI for {prompt_enum}")
-            return None
+        if not merged_bundle or merged_bundle.strip() == "":
+            msg = f"Empty response from AI pipeline for {prompt_enum.value}"
+            logger.error(msg)
+            raise ValueError(msg)
 
         result = await sys_prompt_object.set_prompt(merged_bundle, prompt_enum)
-        logger.info(f"Success to get result from AOAI for {prompt_enum}: {result}")
+        logger.info(f"Success to get result from AOAI for {prompt_enum.value}: {result}")
         return result, merged_bundle
     except Exception as e:
-        logger.exception(f"Exception in handle_action(): {e}")
-        return None
+        logger.exception(f"Exception in handle_action() for {prompt_enum.value}: {e}")
+        raise RuntimeError(f"handle_action failed during {prompt_enum.value}: {e}")
 
 if __name__ == '__main__':
     uvicorn.run(

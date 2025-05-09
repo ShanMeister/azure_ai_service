@@ -1,14 +1,19 @@
 from pydantic import BaseModel
 from typing import Optional, List
 
+class AIServiceResultModel(BaseModel):
+    summarize: str
+    translate: str
+    qna: str
+
 # Success response model
 class ASSuccessResponseModel(BaseModel):
     status: str = "success"
-    action: str
+    action: Optional[str] = None
     account_id: str
     document_id: str
     document_type: Optional[str] = None
-    message_response: str
+    message_response: AIServiceResultModel
     file_name: str
     response_language: Optional[str] = None
     timestamp: str
