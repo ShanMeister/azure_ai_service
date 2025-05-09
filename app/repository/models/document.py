@@ -6,8 +6,8 @@ from sqlalchemy.sql import func
 Base = declarative_base()
 
 class DocumentRecordModel(Base):
-    __tablename__ = 'document_record'
-    __table_args__ = {'schema': 'nuecs'}
+    __tablename__ = 'nuecs_document_record'
+    __table_args__ = {'schema': 'dbo'}
 
     doc_id = Column(VARCHAR(100), primary_key=True)
     ai_search_id = Column(Text)

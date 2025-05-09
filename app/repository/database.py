@@ -19,7 +19,8 @@ class Database:
 
     def connect(self):
         database_url = (
-            f"mysql+pymysql://{self.db_user}:{self.db_pwd}@{self.db_host}:{self.db_port}/{self.db_name}"
+            # f"mysql+pymysql://{self.db_user}:{self.db_pwd}@{self.db_host}:{self.db_port}/{self.db_name}"
+            f"mssql+pyodbc://{self.db_user}:{self.db_pwd}@{self.db_host},{self.db_port}/{self.db_name}?driver=ODBC+Driver+17+for+SQL+Server"
         )
         self._engine = create_engine(database_url, pool_pre_ping=True)
         self._SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self._engine)

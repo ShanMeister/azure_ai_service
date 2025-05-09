@@ -224,7 +224,8 @@ async def auto_ai_service(
         message_response=AIServiceResultModel(
             summarize=summarized_result,
             translate=translated_result,
-            qna=qna_result
+            qna=qna_result,
+            preprocessed_content=preprocessed_data
         ),
         file_name=file.filename,
         response_language=response_language,
@@ -433,7 +434,7 @@ async def real_time_ai_service(
 async def delete_record(
     system_name: SystemEnum= Form(...),
     document_id: str = Form(...),
-    file: UploadFile = File(...)
+    file: Optional[UploadFile] = Form(None),
 ):
     db_session = app.state.db.get_session()
     try:
@@ -459,7 +460,9 @@ async def delete_record(
         return DRErrorResponseModel(
             status="error",
             document_id=document_id,
-            message=str(e)
+            error_message=str(e),
+            error_code=404,
+            timestamp=datetime.utcnow().isoformat() + "Z"
         )
     finally:
         db_session.close()
