@@ -183,7 +183,7 @@ class IndexAgent:
             },
             {
                 "name": "file_id",
-                "type": "Edm.Int64",
+                "type": "Edm.String",
                 "searchable": False,
                 "filterable": True,
                 "retrievable": True,

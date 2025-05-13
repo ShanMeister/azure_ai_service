@@ -15,7 +15,7 @@ class AISearchUseCase:
     ):
         doc = {
             "id": id,
-            "file_id": int(file_id),
+            "file_id": file_id,
             "file_name": file_name,
             "content": content
         }

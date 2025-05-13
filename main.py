@@ -434,7 +434,7 @@ async def real_time_ai_service(
 async def delete_record(
     system_name: SystemEnum= Form(...),
     document_id: str = Form(...),
-    file: Optional[UploadFile] = Form(None),
+    file_name: str = Form(...)
 ):
     db_session = app.state.db.get_session()
     try:
