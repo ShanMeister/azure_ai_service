@@ -83,7 +83,7 @@ class SysPromptClass:
         logger.info(f"Success get {prompt_type} response from AOAI...")
         return response
 
-    async def set_real_time_prompt(self, context, prompt_type, message_request: Optional[str] = None):
+    async def set_real_time_prompt(self, context, prompt_type, message_request: Optional[str] = None, response_language: Optional[str] = None):
         if prompt_type == PromptEnum.summarize:
             prompt_text = f"""
                 You are a legal expert specializing in contract analysis.
@@ -107,7 +107,7 @@ class SysPromptClass:
                 You are a legal expert specializing in contract translation.
 
                 TASK:
-                You always provide fact-based information, and would never make anything up. Translate the following text, if the text is in english, translate it into traditional chinese, otherwise, translate it into english.
+                You always provide fact-based information, and would never make anything up. Translate the following text into {response_language}.
 
                 CONTEXT:
                 ```markdown

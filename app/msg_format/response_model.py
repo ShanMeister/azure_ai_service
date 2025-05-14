@@ -5,7 +5,7 @@ class AIServiceResultModel(BaseModel):
     summarize: str
     translate: str
     qna: str
-    preprocessed_content: str
+    processed_content: str
 
 # Success response model
 class ASSuccessResponseModel(BaseModel):

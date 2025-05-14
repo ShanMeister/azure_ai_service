@@ -14,6 +14,7 @@ from app.enums.system_enum import SystemEnum
 from app.enums.action_enum import ActionEnum, RealTimeActionEnum
 from app.enums.prompt_enum import PromptEnum
 from app.enums.search_enum import SearchTypeEnum, SearchThresholdEnum
+from app.enums.translation_enum import TranslationEnum
 from app.enums.schema_enum import DocumentRecordCreate, DocumentRecordUpdate
 from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel, RTASSuccessResponseModel, RTASErrorResponseModel, DRSuccessResponseModel, DRErrorResponseModel, AIServiceResultModel
 from src.doc2rag.pipeline.file_flows import file_initialize_flow
@@ -24,6 +25,7 @@ from app.use_case.rag_processing import RAGUseCase
 from app.repository.database import Database, get_db
 from app.repository.repository import DocumentRepository
 from app.use_case.ai_search_use_case import AISearchUseCase
+from app.use_case.file_processing import FileProcessUseCase
 
 load_dotenv('app/conf/.env')
 logger.remove()
@@ -60,6 +62,7 @@ app = FastAPI(lifespan=lifespan)
 rag_use_case_object = RAGUseCase()
 file_process_object = FileProcessClass()
 sys_prompt_object = SysPromptClass()
+fast_file_process_object = FileProcessUseCase()
 
 
 # API-1 service
@@ -225,7 +228,7 @@ async def auto_ai_service(
             summarize=summarized_result,
             translate=translated_result,
             qna=qna_result,
-            preprocessed_content=preprocessed_data
+            processed_content=preprocessed_data
         ),
         file_name=file.filename,
         response_language=response_language,
@@ -283,17 +286,17 @@ async def contract_search(
 async def real_time_ai_service(
     system_name: SystemEnum= Form(...),
     action: RealTimeActionEnum = Form(...),
-    account_id: str = Form(...),
-    document_id: str = Form(...),
+    account_id: Optional[str] = Form(...),
+    document_id: Optional[str] = Form(None),
     processed_content: Optional[str] = Form(None),
     document_type: Optional[str] = Form(None),
     chat_id : Optional[str] = Form(None),
     sequence: Optional[str] = Form(None),
-    doc_content: str = Form(...),
     message_request: Optional[str] = Form(None),
-    response_language: Optional[str] = Form(None),
+    response_language: Optional[TranslationEnum] = Form(None),
     model: Optional[str] = Form(None),
     output_format: Optional[str] = Form(None),
+    file_name: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None)
 ):
     logger.info(f"Received chat: {chat_id} for action: {action}")
@@ -310,8 +313,8 @@ async def real_time_ai_service(
             )
         try:
             # Validate file size (max 10MB)
-            pdf_bytes = await file.read()
-            file_size = len(pdf_bytes)  # Read file to check size
+            file_bytes = await file.read()
+            file_size = len(file_bytes)  # Read file to check size
             await file.seek(0)  # Reset pointer after reading
         except Exception as e:
             logger.error(f"Error reading file: {e}")
@@ -329,6 +332,15 @@ async def real_time_ai_service(
     else:
         filename = ""
         logger.info("No file uploaded.")
+
+    if (processed_content and not document_id) or (not processed_content and document_id):
+        return RTASErrorResponseModel(
+            status="error",
+            action=action.value,
+            error_message="The 'processed_content' and 'document_id' must either both exist or both be missing.",
+            error_code=400,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
 
     # Check if 'text' is required for 'summarize' or 'translate'
     if not account_id:
@@ -368,24 +380,20 @@ async def real_time_ai_service(
                 error_code=400,
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
-        if not output_format:
+
+    if file:
+        doc_context = await fast_file_process_object.get_markdown_with_pymupdf4llm(file)
+    else:
+        # make sure "processed_content" exist
+        if not processed_content:
             return RTASErrorResponseModel(
                 status="error",
                 action=action.value,
-                error_message="The 'output_format' parameter is required when action is 'translate'.",
+                error_message="The 'doc_content' is required if no upload file.",
                 error_code=400,
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
-
-    # make sure "doc_content" exist
-    if not doc_content:
-        return RTASErrorResponseModel(
-            status="error",
-            action=action.value,
-            error_message="The 'doc_content' field is required.",
-            error_code=400,
-            timestamp=datetime.utcnow().isoformat() + "Z"
-        )
+        doc_context = processed_content
 
     try:
         # Align action to prompt_type
@@ -394,13 +402,19 @@ async def real_time_ai_service(
         # Call Azure OpenAI model to process data
         if prompt_type == "chat":
             response = await sys_prompt_object.set_real_time_prompt(
-                context=doc_content,
+                context=doc_context,
                 prompt_type=prompt_type,
                 message_request=message_request
             )
+        elif prompt_type == "translate":
+            response = await sys_prompt_object.set_real_time_prompt(
+                context=doc_context,
+                prompt_type=prompt_type,
+                response_language=response_language
+            )
         else:
             response = await sys_prompt_object.set_real_time_prompt(
-                context=doc_content,
+                context=doc_context,
                 prompt_type=prompt_type
             )
         result = response["response"]
