@@ -10,6 +10,7 @@ class DocumentRecordModel(Base):
     __table_args__ = {'schema': 'dbo'}
 
     doc_id = Column(VARCHAR(100), primary_key=True)
+    file_name = Column(VARCHAR(100), index=True)
     ai_search_id = Column(Text)
     doc_content = Column(Text)
     preprocessed_content = Column(Text)

@@ -12,6 +12,7 @@ class DocumentRepository:
         """Build brand new DocumentRecord"""
         new_document = DocumentRecordModel(
             doc_id=document.doc_id,
+            file_name=document.file_name,
             ai_search_id=document.ai_search_id,
             doc_content=document.doc_content,
             preprocessed_content=document.preprocessed_content,
@@ -30,10 +31,26 @@ class DocumentRepository:
         """Search doc_id in DocumentRecord"""
         return self.db.query(DocumentRecordModel).filter(DocumentRecordModel.doc_id == document_id).first()
 
+    def get_document_by_file_name(self, file_name: str):
+        """Search the first document record with matching file_name"""
+        return self.db.query(DocumentRecordModel).filter(DocumentRecordModel.file_name == file_name).first()
+
+    def get_document_by_id_and_file_name(self, document_id: str, file_name: str):
+        """Search document by both document_id and file_name"""
+        return (
+            self.db.query(DocumentRecordModel)
+            .filter(
+                DocumentRecordModel.doc_id == document_id,
+                DocumentRecordModel.file_name == file_name
+            )
+            .first()
+        )
+
     def update_document(self, document_id: str, document: DocumentRecordUpdate):
         """Update exist DocumentRecord"""
         existing_document = self.db.query(DocumentRecordModel).filter(DocumentRecordModel.doc_id == document_id).first()
         if existing_document:
+            existing_document.file_name = document.file_name
             existing_document.doc_content = document.doc_content
             existing_document.preprocessed_content = document.preprocessed_content
             existing_document.translated_context = document.translated_context

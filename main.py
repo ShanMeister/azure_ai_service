@@ -16,7 +16,7 @@ from app.enums.prompt_enum import PromptEnum
 from app.enums.search_enum import SearchTypeEnum, SearchThresholdEnum
 from app.enums.translation_enum import TranslationEnum
 from app.enums.schema_enum import DocumentRecordCreate, DocumentRecordUpdate
-from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel, RTASSuccessResponseModel, RTASErrorResponseModel, DRSuccessResponseModel, DRErrorResponseModel, AIServiceResultModel
+from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel, RTASSuccessResponseModel, RTASErrorResponseModel, DRSuccessResponseModel, DRErrorResponseModel, AIServiceResultModel, EXCPSuccessResponseModel, EXCPErrorResponseModel, ExpiredContractResultModel
 from src.doc2rag.pipeline.file_flows import file_initialize_flow
 from app.utils.file_process import FileProcessClass
 from app.use_case.sys_prompt import SysPromptClass
@@ -169,6 +169,7 @@ async def auto_ai_service(
         if existing_doc:
             old_ai_search_id = existing_doc.ai_search_id
             update_data = DocumentRecordUpdate(
+                file_name=file.filename,
                 preprocessed_content=preprocessed_data,
                 translated_context=translated_result,
                 summarized_context=summarized_result,
@@ -188,6 +189,7 @@ async def auto_ai_service(
             ai_search_id = str(uuid.uuid4())
             create_data = DocumentRecordCreate(
                 doc_id=document_id,
+                file_name=file.filename,
                 ai_search_id=ai_search_id,
                 doc_content=None,
                 preprocessed_content=preprocessed_data,
@@ -244,11 +246,11 @@ async def auto_ai_service(
 async def contract_search(
     system_name: SystemEnum = Form(...),
     message_request: str = Form(...),
-    document_count: Optional[int] = Form(None),
+    document_count: Optional[int] = Form(None, ge=1, le=10000),
     search_type: Optional[SearchTypeEnum] = Form(None)
     ):  # Use model here
     message = message_request
-    count = document_count
+    count = document_count or 10
     # if search_type == SearchTypeEnum.fuzzy_matching:
     #     threshold = SearchThresholdEnum.fuzzy
     # elif search_type == SearchTypeEnum.exact_matching:
@@ -260,8 +262,8 @@ async def contract_search(
     #         errorCode=400,
     #         timestamp=datetime.utcnow().isoformat() + "Z"
     #     )
-    logger.info(f"Searching file with similarity threshold: {SearchThresholdEnum.exact}")
-    threshold = float(SearchThresholdEnum.exact)
+    logger.info(f"Searching file with similarity threshold: {SearchThresholdEnum.fuzzy}")
+    threshold = float(SearchThresholdEnum.fuzzy)
 
     matching_contracts = rag_use_case_object.run_rag_flow(message, count, threshold)
 
@@ -328,19 +330,44 @@ async def real_time_ai_service(
                 error_code=400,
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
-        filename = file.filename
+        doc_context = await fast_file_process_object.get_markdown_with_pymupdf4llm(file)
     else:
-        filename = ""
         logger.info("No file uploaded.")
 
-    if (processed_content and not document_id) or (not processed_content and document_id):
-        return RTASErrorResponseModel(
-            status="error",
-            action=action.value,
-            error_message="The 'processed_content' and 'document_id' must either both exist or both be missing.",
-            error_code=400,
-            timestamp=datetime.utcnow().isoformat() + "Z"
-        )
+        if document_id and file_name:
+            session: Session = app.state.db.get_session()
+            repo = DocumentRepository(session)
+            document = repo.get_document_by_id_and_file_name(document_id, file_name)
+            if not document:
+                return RTASErrorResponseModel(
+                    status="error",
+                    action=action.value,
+                    error_message=f"Document not found for doc_id '{document_id}' and file_name '{file_name}'.",
+                    error_code=400,
+                    timestamp=datetime.utcnow().isoformat() + "Z"
+                )
+            doc_context = document.preprocessed_content
+            logger.info(f"Loaded document content from DB for doc_id: {document_id} and file_name: {file_name}")
+        else:
+            if not processed_content:
+                return RTASErrorResponseModel(
+                    status="error",
+                    action=action.value,
+                    error_message="Either 'file' must be uploaded, or provide both 'document_id' and 'file_name', or provide 'processed_content'.",
+                    error_code=400,
+                    timestamp=datetime.utcnow().isoformat() + "Z"
+                )
+            doc_context = processed_content
+
+    # filename = file.filename if file else (file_name or "")
+    # if (processed_content and not document_id) or (not processed_content and document_id):
+    #     return RTASErrorResponseModel(
+    #         status="error",
+    #         action=action.value,
+    #         error_message="The 'processed_content' and 'document_id' must either both exist or both be missing.",
+    #         error_code=400,
+    #         timestamp=datetime.utcnow().isoformat() + "Z"
+    #     )
 
     # Check if 'text' is required for 'summarize' or 'translate'
     if not account_id:
@@ -380,20 +407,6 @@ async def real_time_ai_service(
                 error_code=400,
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
-
-    if file:
-        doc_context = await fast_file_process_object.get_markdown_with_pymupdf4llm(file)
-    else:
-        # make sure "processed_content" exist
-        if not processed_content:
-            return RTASErrorResponseModel(
-                status="error",
-                action=action.value,
-                error_message="The 'doc_content' is required if no upload file.",
-                error_code=400,
-                timestamp=datetime.utcnow().isoformat() + "Z"
-            )
-        doc_context = processed_content
 
     try:
         # Align action to prompt_type
@@ -436,7 +449,7 @@ async def real_time_ai_service(
         sequence=sequence,
         message_request=message_request,
         message_response=result,
-        file_name=filename,
+        file_name=file_name,
         timestamp=datetime.utcnow().isoformat() + "Z"
     )
 
@@ -480,6 +493,145 @@ async def delete_record(
         )
     finally:
         db_session.close()
+
+@app.post("/expired_contract_preprocess", responses={
+    200: {"model": ASSuccessResponseModel},
+    400: {"model": ASErrorResponseModel},
+    500: {"model": ASErrorResponseModel}
+})
+async def expired_contract_preprocess(
+    system_name: SystemEnum = Form(...),
+    account_id: str = Form(...),
+    document_id: str = Form(...),
+    file: UploadFile = File(...)
+):
+
+    logger.info(f"Receiving expired file: {file.filename}...")
+
+    # Validate file type
+    file_ext = "." + file.filename.split(".")[-1].lower()
+    if file_ext not in allowed_extensions:
+        return EXCPErrorResponseModel(
+            status="error",
+            error_message="Invalid file format. Only .pdf and .docx are supported.",
+            error_code=400,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+
+    try:
+        # Validate file size (max 10MB)
+        pdf_bytes = await file.read()
+        file_size = len(pdf_bytes)  # Read file to check size
+        await file.seek(0)  # Reset pointer after reading
+    except Exception as e:
+        logger.error(f"Error reading file: {e}")
+        raise HTTPException(status_code=500, detail="Error processing the file")
+
+    if file_size > 10 * 1024 * 1024:  # 10MB limit
+        return EXCPErrorResponseModel(
+            status="error",
+            error_message="File size exceeds the 10MB limit.",
+            error_code=400,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+
+    # Check if 'text' is required for 'summarize' or 'translate'
+    if not account_id:
+        return EXCPErrorResponseModel(
+            status="error",
+            error_message="The 'account_id' parameter is required.",
+            error_code=400,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+
+    try:
+        os.makedirs(SAVE_FILE_PATH, exist_ok=True)
+        save_path = os.path.join(SAVE_FILE_PATH, file.filename)
+        await file_process_object.save_upload_file(file, save_path)
+
+        merged_bundle = await run_ai_service_pipeline()
+        if not merged_bundle or merged_bundle.strip() == "":
+            msg = f"Empty response from AI pipeline..."
+            logger.error(msg)
+            raise ValueError(msg)
+    except Exception as e:
+        logger.error(f"LLM service failed: {e}")
+        return EXCPErrorResponseModel(
+            status="error",
+            error_message=f"Error while processing file: {file.filename}.",
+            error_code=500,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+    preprocessed_data = merged_bundle
+    # Insert contract record into DB
+    session: Session = app.state.db.get_session()
+    try:
+        doc_repo = DocumentRepository(session)
+        ai_search_use_case = AISearchUseCase()
+        existing_doc = doc_repo.get_document(document_id)
+
+        if existing_doc:
+            old_ai_search_id = existing_doc.ai_search_id
+            update_data = DocumentRecordUpdate(
+                preprocessed_content=preprocessed_data,
+                translated_context=None,
+                summarized_context=None,
+                qna_context=None,
+                updated_by=account_id
+            )
+            doc_repo.update_document(document_id, update_data)
+
+            await ai_search_use_case.delete_document(old_ai_search_id)
+            await ai_search_use_case.upload_single_document(
+                id=old_ai_search_id,
+                file_id=document_id,
+                file_name=file.filename,
+                content=preprocessed_data
+            )
+        else:
+            ai_search_id = str(uuid.uuid4())
+            create_data = DocumentRecordCreate(
+                doc_id=document_id,
+                ai_search_id=ai_search_id,
+                doc_content=None,
+                preprocessed_content=preprocessed_data,
+                translated_context=None,
+                summarized_context=None,
+                qna_context=None,
+                created_by=account_id,
+                updated_by=account_id
+            )
+            doc_repo.create_document(create_data)
+
+            await ai_search_use_case.upload_single_document(
+                id=ai_search_id,
+                file_id=document_id,
+                file_name=file.filename,
+                content=preprocessed_data
+            )
+
+    except Exception as e:
+        logger.error(f"DB insert error: {e}")
+        return EXCPErrorResponseModel(
+            status="error",
+            error_message="Internal server error when saving result to DB.",
+            error_code=500,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+    finally:
+        session.close()
+
+    return EXCPSuccessResponseModel(
+        status="success",
+        action=None,
+        account_id=account_id,
+        document_id=document_id,
+        message_response=ExpiredContractResultModel(
+            processed_content=preprocessed_data
+        ),
+        file_name=file.filename,
+        timestamp=datetime.utcnow().isoformat() + "Z"
+    )
 
 
 @app.get("/health_check")

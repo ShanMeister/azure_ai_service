@@ -7,6 +7,9 @@ class AIServiceResultModel(BaseModel):
     qna: str
     processed_content: str
 
+class ExpiredContractResultModel(BaseModel):
+    processed_content: str
+
 # Success response model
 class ASSuccessResponseModel(BaseModel):
     status: str = "success"
@@ -61,16 +64,32 @@ class RTASErrorResponseModel(BaseModel):
     error_code: int
     timestamp: str
 
-# Success response model for
+# Success response model for delete record
 class DRSuccessResponseModel(BaseModel):
     status: str = "success"
     document_id: str
     timestamp: str
 
-# Error response model
+# Error response model for delete record
 class DRErrorResponseModel(BaseModel):
     status: str = "error"
     document_id: str
+    error_message: str
+    error_code: int
+    timestamp: str
+
+# Success response model for expired contract preprocess
+class EXCPSuccessResponseModel(BaseModel):
+    status: str = "success"
+    account_id: str
+    document_id: str
+    message_response: ExpiredContractResultModel
+    file_name: str
+    timestamp: str
+
+# Error response model for expired contract preprocess
+class EXCPErrorResponseModel(BaseModel):
+    status: str = "error"
     error_message: str
     error_code: int
     timestamp: str
