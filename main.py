@@ -573,6 +573,7 @@ async def expired_contract_preprocess(
         if existing_doc:
             old_ai_search_id = existing_doc.ai_search_id
             update_data = DocumentRecordUpdate(
+                file_name=file.filename,
                 preprocessed_content=preprocessed_data,
                 translated_context=None,
                 summarized_context=None,
@@ -592,6 +593,7 @@ async def expired_contract_preprocess(
             ai_search_id = str(uuid.uuid4())
             create_data = DocumentRecordCreate(
                 doc_id=document_id,
+                file_name=file.filename,
                 ai_search_id=ai_search_id,
                 doc_content=None,
                 preprocessed_content=preprocessed_data,
