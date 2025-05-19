@@ -65,9 +65,9 @@ class RAGUseCase:
                 return None
 
             documents_as_dicts = [
-                {"metadata": doc.metadata, "content": doc.page_content} for doc in documents
+                doc.metadata for doc in documents
             ]
-            logger.info(f"Retrieved {len(documents)} documents")
+            logger.info(f"Retrieved {len(documents_as_dicts)} documents")
             return documents_as_dicts
         except Exception as e:
             logger.error(f"Error in run_rag_flow: {str(e)}")

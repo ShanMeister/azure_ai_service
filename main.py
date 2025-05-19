@@ -246,7 +246,7 @@ async def auto_ai_service(
 async def contract_search(
     system_name: SystemEnum = Form(...),
     message_request: str = Form(...),
-    document_count: Optional[int] = Form(None, ge=1, le=10000),
+    document_count: int = Form(ge=1, le=10000),
     search_type: Optional[SearchTypeEnum] = Form(None)
     ):  # Use model here
     message = message_request
