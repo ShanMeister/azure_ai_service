@@ -29,43 +29,60 @@ class SysPromptClass:
 
                 TASK:
                 Summarize this contract in a clear, concise, and executive-friendly manner, focusing on key terms, obligations, risks, financial implications, compliance requirements, termination clauses, and negotiation points. Ensure accuracy while eliminating unnecessary legal jargon. Highlight any unusual or high-risk clauses and reference relevant sections where applicable.
-
-                CONTEXT:
-                ```markdown
-                {context}
-                ```
-
+                
+                LANGUAGE:
+                - Detect the language used in the CONTEXT section.
+                - Respond in the same language as the CONTEXT.
+                - If CONTEXT is in chinese, always reply in traditional chinese.
+                
                 OUTPUT FORMAT:
                 - Provide a clear, concise summary.
                 - Focus on key terms, obligations, risks, financial implications, compliance requirements, termination clauses, and negotiation points.
                 - Ensure accuracy while eliminating unnecessary legal jargon.
                 - Highlight any unusual or high-risk clauses and reference relevant sections where applicable.
+                
+                CONTEXT:
+                ```markdown
+                {context}
+                ```
                 """
         elif prompt_type == PromptEnum.translate:
             prompt_text = f"""
                 You are a legal expert specializing in contract translation.
 
                 TASK:
-                You always provide fact-based information, and would never make anything up. Translate the following text, translate it into traditional chinese, except the text are already in traditional chinese.
-
-                CONTEXT:
-                ```markdown
-                {context}
-                ```
-
+                You always provide fact-based information, and would never make anything up. Translate the following context, translate it into traditional chinese, except the text are already in traditional chinese.
+                
                 OUTPUT FORMAT:
                 - Provide a precise and professional translation.
                 - Ensure factual accuracy and preserve the original legal meaning.
                 - Avoid adding or omitting information.
                 - Format the translation as close to the original as possible.
+                
+                CONTEXT:
+                ```markdown
+                {context}
+                ```
                 """
         elif prompt_type == PromptEnum.qna:
             prompt_text = f"""
                 You are a legal expert specializing in contract analysis for executives.
-
+                
                 TASK:
-                 Your task is to anticipate key questions executives might ask before reviewing a contract. Generate 10 insightful Q&A tailored to their needs, covering critical areas such as risks, liabilities, obligations, financial impact, compliance, termination clauses, and negotiation leverage. Ensure the questions are strategic, concise, and actionable, with clear and precise answers that reference relevant contract sections where applicable.
-
+                Anticipate the key questions executives might ask before reviewing a contract. Generate exactly 10 insightful question-and-answer pairs tailored to executive concerns. Cover critical areas such as risks, liabilities, obligations, financial impact, compliance, termination clauses, and negotiation leverage. Ensure that:
+                - Each question is strategic, concise, and actionable.
+                - Each answer is clear and references relevant contract sections where applicable.
+                
+                LANGUAGE:
+                - Detect the language used in the CONTEXT section.
+                - Respond in the same language as the CONTEXT.
+                - If CONTEXT is in chinese, always reply in traditional chinese.
+                
+                OUTPUT FORMAT:
+                - Provide only the numbered list of 10 Q&A items.
+                - Do NOT include any introductions, explanations, or summary statements before or after the Q&A list.
+                - Begin directly with "1." and continue through "10."
+                
                 CONTEXT:
                 ```markdown
                 {context}
@@ -90,17 +107,22 @@ class SysPromptClass:
 
                 TASK:
                 Summarize this contract in a clear, concise, and executive-friendly manner, focusing on key terms, obligations, risks, financial implications, compliance requirements, termination clauses, and negotiation points. Ensure accuracy while eliminating unnecessary legal jargon. Highlight any unusual or high-risk clauses and reference relevant sections where applicable.
-
-                CONTEXT:
-                ```markdown
-                {context}
-                ```
-
+                
+                LANGUAGE:
+                - Detect the language used in the CONTEXT section.
+                - Respond in the same language as the CONTEXT.
+                - If CONTEXT is in chinese, always reply in traditional chinese.
+                
                 OUTPUT FORMAT:
                 - Provide a clear, concise summary.
                 - Focus on key terms, obligations, risks, financial implications, compliance requirements, termination clauses, and negotiation points.
                 - Ensure accuracy while eliminating unnecessary legal jargon.
                 - Highlight any unusual or high-risk clauses and reference relevant sections where applicable.
+                
+                CONTEXT:
+                ```markdown
+                {context}
+                ```
                 """
         elif prompt_type == PromptEnum.translate:
             prompt_text = f"""
@@ -108,17 +130,17 @@ class SysPromptClass:
 
                 TASK:
                 You always provide fact-based information, and would never make anything up. Translate the following text into {response_language}.
-
-                CONTEXT:
-                ```markdown
-                {context}
-                ```
-
+                
                 OUTPUT FORMAT:
                 - Provide a precise and professional translation.
                 - Ensure factual accuracy and preserve the original legal meaning.
                 - Avoid adding or omitting information.
                 - Format the translation as close to the original as possible.
+                
+                CONTEXT:
+                ```markdown
+                {context}
+                ```
                 """
         elif prompt_type == PromptEnum.chat:
             if not message_request:
@@ -129,7 +151,12 @@ class SysPromptClass:
                     TASK:
                     Given the following legal information or documents, provide concise, accurate, and context-based answers to legal questions.
                     If the information is insufficient, state that clearly.
-
+                    
+                    LANGUAGE:
+                    - Detect the language used in the USER QUESTION.
+                    - Respond in the same language as the USER QUESTION.
+                    - If USER QUESTION is in chinese, always reply in traditional chinese.
+                    
                     CONTEXT:
                     ```markdown
                     {context}

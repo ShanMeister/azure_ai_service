@@ -469,15 +469,16 @@ async def delete_record(
         repo = DocumentRepository(db_session)
         ai_search_use_case = AISearchUseCase()
 
-        deleted = repo.delete_document(document_id)
+        deleted = repo.delete_document_id_and_file_name(document_id, file_name)
         if not deleted:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        await ai_search_use_case.delete_document(document_id)
+        await ai_search_use_case.delete_document_by_id_and_file_name(document_id, file_name)
 
         return DRSuccessResponseModel(
             status="success",
             document_id=document_id,
+            file_name = file_name,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
 
@@ -487,6 +488,7 @@ async def delete_record(
         return DRErrorResponseModel(
             status="error",
             document_id=document_id,
+            file_name=file_name,
             error_message=str(e),
             error_code=404,
             timestamp=datetime.utcnow().isoformat() + "Z"

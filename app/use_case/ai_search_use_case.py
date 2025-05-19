@@ -33,3 +33,8 @@ class AISearchUseCase:
         """刪除單筆文件"""
         async with AISearchRepository() as ai_search_repo:
             return await ai_search_repo.delete_document(id)
+
+    async def delete_document_by_id_and_file_name(self, file_id: str, file_name: str):
+        """刪除單筆文件"""
+        async with AISearchRepository() as ai_search_repo:
+            return await ai_search_repo.delete_document_by_id_and_file_name(file_id, file_name)

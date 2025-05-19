@@ -18,6 +18,6 @@ class DocumentRecordModel(Base):
     summarized_context = Column(Text)
     qna_context = Column(Text)
     created_by = Column(VARCHAR(100))
-    created_at = Column(TIMESTAMP, server_default=func.now())
+    created_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
     updated_by = Column(VARCHAR(100))
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())

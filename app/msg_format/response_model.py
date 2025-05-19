@@ -68,12 +68,14 @@ class RTASErrorResponseModel(BaseModel):
 class DRSuccessResponseModel(BaseModel):
     status: str = "success"
     document_id: str
+    file_name: str
     timestamp: str
 
 # Error response model for delete record
 class DRErrorResponseModel(BaseModel):
     status: str = "error"
     document_id: str
+    file_name: str
     error_message: str
     error_code: int
     timestamp: str

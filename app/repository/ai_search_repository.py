@@ -74,3 +74,31 @@ class AISearchRepository:
             logger.info(f"Deleted document result from Azure Search: {result}")
         except Exception as e:
             logger.exception("Delete document from Azure Search failed")
+
+    async def delete_document_by_id_and_file_name(self, file_id: str, file_name: str):
+        """
+        Delete a document from Azure Search where file_id and file_name both match.
+        """
+        try:
+            # Check target data exist or not（file_id + file_name）
+            results = await self.client.search(
+                search_text="",
+                filter=f"file_id eq '{file_id}' and file_name eq '{file_name}'"
+            )
+            docs = [doc async for doc in results]
+
+            if not docs:
+                logger.warning(
+                    f"No document found in Azure Search with file_id='{file_id}' and file_name='{file_name}'")
+                return False
+
+            # 假設 file_id + file_name 是唯一鍵，只刪除第一筆找到的（通常只會有一筆）
+            target_id = docs[0]["id"]
+            result = await self.client.delete_documents(documents=[{"id": target_id}])
+            logger.info(
+                f"Deleted document from Azure Search: id={target_id}, file_id={file_id}, file_name={file_name}")
+            return True
+
+        except Exception as e:
+            logger.exception("Delete document from Azure Search failed")
+            return False

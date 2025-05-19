@@ -2,9 +2,9 @@ import pymupdf4llm
 from io import BytesIO
 import fitz  # PyMuPDF
 # from pymupdf4llm.helpers.pymupdf_rag import extract_markdown_from_doc
-import pymupdf.pro
+# import pymupdf.pro
 from fastapi import UploadFile
-pymupdf.pro.unlock()
+# pymupdf.pro.unlock()
 
 
 class FileProcessUseCase:

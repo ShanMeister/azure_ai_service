@@ -69,3 +69,19 @@ class DocumentRepository:
             self.db.commit()
             return True
         return False
+
+    def delete_document_id_and_file_name(self, document_id: str, file_name: str) -> bool:
+        """Delete DocumentRecord by document_id and file_name"""
+        document = (
+            self.db.query(DocumentRecordModel)
+            .filter(
+                DocumentRecordModel.doc_id == document_id,
+                DocumentRecordModel.file_name == file_name
+            )
+            .first()
+        )
+        if document:
+            self.db.delete(document)
+            self.db.commit()
+            return True
+        return False
