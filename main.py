@@ -2,7 +2,9 @@ import os
 import sys
 import uvicorn
 import uuid
-from loguru import logger
+
+from exceptiongroup import catch
+from app.utils.logger import init_logger
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -15,7 +17,8 @@ from app.enums.action_enum import ActionEnum, RealTimeActionEnum
 from app.enums.prompt_enum import PromptEnum
 from app.enums.search_enum import SearchTypeEnum, SearchThresholdEnum
 from app.enums.translation_enum import TranslationEnum
-from app.enums.schema_enum import DocumentRecordCreate, DocumentRecordUpdate
+from app.enums.schema_enum import DocumentRecordCreate, DocumentRecordUpdate, ChatRecordCreate, ChatRecordUpdate
+from app.enums.chat_role_enum import RoleEnum
 from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel, RTASSuccessResponseModel, RTASErrorResponseModel, DRSuccessResponseModel, DRErrorResponseModel, AIServiceResultModel, EXCPSuccessResponseModel, EXCPErrorResponseModel, ExpiredContractResultModel
 from src.doc2rag.pipeline.file_flows import file_initialize_flow
 from app.utils.file_process import FileProcessClass
@@ -23,13 +26,14 @@ from app.use_case.sys_prompt import SysPromptClass
 from pipeline import run_ai_service_pipeline
 from app.use_case.rag_processing import RAGUseCase
 from app.repository.database import Database, get_db
-from app.repository.repository import DocumentRepository
+from app.repository.repository import DocumentRepository, ChatRecordRepository
 from app.use_case.ai_search_use_case import AISearchUseCase
 from app.use_case.file_processing import FileProcessUseCase
+from app.use_case.chat_use_case import ChatUseCase
 
 load_dotenv('app/conf/.env')
-logger.remove()
-logger.add(sys.stdout, level=os.getenv('LOG_LEVEL'))
+logger = init_logger()
+logger.info("Application starting...")
 
 # file type constraints
 allowed_extensions = {".pdf", ".docx"}
@@ -63,6 +67,8 @@ rag_use_case_object = RAGUseCase()
 file_process_object = FileProcessClass()
 sys_prompt_object = SysPromptClass()
 fast_file_process_object = FileProcessUseCase()
+ai_search_use_case_object = AISearchUseCase()
+chat_use_case_object = ChatUseCase()
 
 
 # API-1 service
@@ -84,7 +90,7 @@ async def auto_ai_service(
     file: UploadFile = File(...)
 ):
 
-    logger.info(f"Received file: {file.filename} for action: {action}")
+    logger.info(f"Received file: {file.filename}")
 
     # Validate file type
     file_ext = "." + file.filename.split(".")[-1].lower()
@@ -109,7 +115,7 @@ async def auto_ai_service(
     if file_size > 10 * 1024 * 1024:  # 10MB limit
         return ASErrorResponseModel(
             status="error",
-            action=action.value,
+            action=None,
             error_message="File size exceeds the 10MB limit.",
             error_code=400,
             timestamp=datetime.utcnow().isoformat() + "Z"
@@ -119,7 +125,7 @@ async def auto_ai_service(
     if not account_id:
         return ASErrorResponseModel(
             status="error",
-            action=action.value,
+            action=None,
             error_message="The 'account_id' parameter is required.",
             error_code=400,
             timestamp=datetime.utcnow().isoformat() + "Z"
@@ -153,72 +159,69 @@ async def auto_ai_service(
     if not any([summarized_result, translated_result, qna_result]):
         return ASErrorResponseModel(
             status="error",
-            action="all",
+            action=None,
             error_message="Empty response from AOAI service. Please try again later.",
             error_code=500,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
 
     # Insert contract record into DB
-    session: Session = app.state.db.get_session()
     try:
-        doc_repo = DocumentRepository(session)
-        ai_search_use_case = AISearchUseCase()
-        existing_doc = doc_repo.get_document(document_id)
+        with app.state.db.get_session() as session:
+            doc_repo = DocumentRepository(session)
+            existing_doc = await doc_repo.get_document_by_id_and_file_name(document_id, file.filename)
 
-        if existing_doc:
-            old_ai_search_id = existing_doc.ai_search_id
-            update_data = DocumentRecordUpdate(
-                file_name=file.filename,
-                preprocessed_content=preprocessed_data,
-                translated_context=translated_result,
-                summarized_context=summarized_result,
-                qna_context=qna_result,
-                updated_by=account_id
-            )
-            doc_repo.update_document(document_id, update_data)
+            if existing_doc:
+                old_ai_search_id = existing_doc.ai_search_id
+                update_data = DocumentRecordUpdate(
+                    file_name=file.filename,
+                    preprocessed_content=preprocessed_data,
+                    translated_context=translated_result,
+                    summarized_context=summarized_result,
+                    qna_context=qna_result,
+                    updated_by=account_id
+                )
+                await doc_repo.update_document(document_id, update_data)
 
-            await ai_search_use_case.delete_document(old_ai_search_id)
-            await ai_search_use_case.upload_single_document(
-                id=old_ai_search_id,
-                file_id=document_id,
-                file_name=file.filename,
-                content=preprocessed_data
-            )
-        else:
-            ai_search_id = str(uuid.uuid4())
-            create_data = DocumentRecordCreate(
-                doc_id=document_id,
-                file_name=file.filename,
-                ai_search_id=ai_search_id,
-                doc_content=None,
-                preprocessed_content=preprocessed_data,
-                translated_context=translated_result,
-                summarized_context=summarized_result,
-                qna_context=qna_result,
-                created_by=account_id,
-                updated_by=account_id
-            )
-            doc_repo.create_document(create_data)
+                await ai_search_use_case_object.delete_document(old_ai_search_id)
+                await ai_search_use_case_object.upload_single_document(
+                    id=old_ai_search_id,
+                    file_id=document_id,
+                    file_name=file.filename,
+                    content=preprocessed_data
+                )
+            else:
+                ai_search_id = str(uuid.uuid4())
+                create_data = DocumentRecordCreate(
+                    doc_id=document_id,
+                    file_name=file.filename,
+                    ai_search_id=ai_search_id,
+                    doc_content=None,
+                    preprocessed_content=preprocessed_data,
+                    translated_context=translated_result,
+                    summarized_context=summarized_result,
+                    qna_context=qna_result,
+                    created_by=account_id,
+                    updated_by=account_id
+                )
+                await doc_repo.create_document(create_data)
 
-            await ai_search_use_case.upload_single_document(
-                id=ai_search_id,
-                file_id=document_id,
-                file_name=file.filename,
-                content=preprocessed_data
-            )
+                await ai_search_use_case_object.upload_single_document(
+                    id=ai_search_id,
+                    file_id=document_id,
+                    file_name=file.filename,
+                    content=preprocessed_data
+                )
 
     except Exception as e:
         logger.error(f"DB insert error: {e}")
         return ASErrorResponseModel(
             status="error",
-            action=action.value,
+            action=None,
             error_message="Internal server error when saving result to DB.",
             error_code=500,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
-    finally:
-        session.close()
 
     return ASSuccessResponseModel(
         status="success",
@@ -293,7 +296,6 @@ async def real_time_ai_service(
     processed_content: Optional[str] = Form(None),
     document_type: Optional[str] = Form(None),
     chat_id : Optional[str] = Form(None),
-    sequence: Optional[str] = Form(None),
     message_request: Optional[str] = Form(None),
     response_language: Optional[TranslationEnum] = Form(None),
     model: Optional[str] = Form(None),
@@ -301,9 +303,10 @@ async def real_time_ai_service(
     file_name: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None)
 ):
-    logger.info(f"Received chat: {chat_id} for action: {action}")
+    logger.info(f"Received request for action: {action}")
     # Validate file type
     if file:
+        logger.info(f"Received file: {file.filename}")
         file_ext = "." + file.filename.split(".")[-1].lower()
         if file_ext not in allowed_extensions:
             return RTASErrorResponseModel(
@@ -335,19 +338,19 @@ async def real_time_ai_service(
         logger.info("No file uploaded.")
 
         if document_id and file_name:
-            session: Session = app.state.db.get_session()
-            repo = DocumentRepository(session)
-            document = repo.get_document_by_id_and_file_name(document_id, file_name)
-            if not document:
-                return RTASErrorResponseModel(
-                    status="error",
-                    action=action.value,
-                    error_message=f"Document not found for doc_id '{document_id}' and file_name '{file_name}'.",
-                    error_code=400,
-                    timestamp=datetime.utcnow().isoformat() + "Z"
-                )
-            doc_context = document.preprocessed_content
-            logger.info(f"Loaded document content from DB for doc_id: {document_id} and file_name: {file_name}")
+            with app.state.db.get_session() as session:
+                repo = DocumentRepository(session)
+                document = await repo.get_document_by_id_and_file_name(document_id, file_name)
+                if not document:
+                    return RTASErrorResponseModel(
+                        status="error",
+                        action=action.value,
+                        error_message=f"Document not found for doc_id '{document_id}' and file_name '{file_name}'.",
+                        error_code=400,
+                        timestamp=datetime.utcnow().isoformat() + "Z"
+                    )
+                doc_context = document.preprocessed_content
+                logger.info(f"Loaded document content from DB for doc_id: {document_id} and file_name: {file_name}")
         else:
             if not processed_content:
                 return RTASErrorResponseModel(
@@ -358,16 +361,6 @@ async def real_time_ai_service(
                     timestamp=datetime.utcnow().isoformat() + "Z"
                 )
             doc_context = processed_content
-
-    # filename = file.filename if file else (file_name or "")
-    # if (processed_content and not document_id) or (not processed_content and document_id):
-    #     return RTASErrorResponseModel(
-    #         status="error",
-    #         action=action.value,
-    #         error_message="The 'processed_content' and 'document_id' must either both exist or both be missing.",
-    #         error_code=400,
-    #         timestamp=datetime.utcnow().isoformat() + "Z"
-    #     )
 
     # Check if 'text' is required for 'summarize' or 'translate'
     if not account_id:
@@ -380,14 +373,6 @@ async def real_time_ai_service(
         )
 
     if action == RealTimeActionEnum.chat:
-        if not sequence:
-            return RTASErrorResponseModel(
-                status="error",
-                action=action.value,
-                error_message="The 'sequence' parameter is required when action is 'chat'.",
-                error_code=400,
-                timestamp=datetime.utcnow().isoformat() + "Z"
-            )
         if not message_request:
             return RTASErrorResponseModel(
                 status="error",
@@ -411,26 +396,72 @@ async def real_time_ai_service(
     try:
         # Align action to prompt_type
         prompt_type = action.value  # 'summarize', 'translate', 'chat'
+        with app.state.db.get_session() as session:
+            # Call Azure OpenAI model to process data
+            if prompt_type == "chat":
+                chat_repo = ChatRecordRepository(session)
+                try:
+                    # 取得歷史紀錄與 sequence
+                    logger.info(f"Start chat process...")
+                    chat_exists = await chat_repo.check_chat_id_exists(chat_id)
+                    histories = await chat_repo.get_history_by_chat_id(chat_id) if chat_exists else []
+                    latest_sequence = await chat_repo.get_latest_sequence(chat_id) or 0
+                    logger.info(f"Getting chat histories...")
+                    chat_histories = chat_use_case_object.build_context_from_history(
+                        histories=histories,
+                        sequence=latest_sequence,
+                        window=10
+                    )
+                    logger.info(f"Sending chat prompt...")
+                    # 送出 prompt，帶入上下文
+                    response = await sys_prompt_object.set_real_time_prompt(
+                        context=doc_context,
+                        prompt_type=prompt_type,
+                        message_request=message_request,
+                        chat_history=chat_histories
+                    )
+                    logger.info(f"Saving chat record...")
+                    # 新增 USER 訊息
+                    await chat_repo.insert_message(
+                        ChatRecordCreate(
+                            chat_id=chat_id,
+                            role=RoleEnum.user,
+                            message=message_request
+                        )
+                    )
 
-        # Call Azure OpenAI model to process data
-        if prompt_type == "chat":
-            response = await sys_prompt_object.set_real_time_prompt(
-                context=doc_context,
-                prompt_type=prompt_type,
-                message_request=message_request
-            )
-        elif prompt_type == "translate":
-            response = await sys_prompt_object.set_real_time_prompt(
-                context=doc_context,
-                prompt_type=prompt_type,
-                response_language=response_language
-            )
-        else:
-            response = await sys_prompt_object.set_real_time_prompt(
-                context=doc_context,
-                prompt_type=prompt_type
-            )
-        result = response["response"]
+                    # 新增 AI 回覆訊息
+                    await chat_repo.insert_message(
+                        ChatRecordCreate(
+                            chat_id=chat_id,
+                            role=RoleEnum.ai,
+                            message=response["response"]
+                        )
+                    )
+                except Exception as e:
+                    logger.error(f"[chat] Failed during DB or prompt handling: {e}")
+                    return RTASErrorResponseModel(
+                        status="error",
+                        action=action.value,
+                        error_message=str(e),
+                        error_code=500,
+                        timestamp=datetime.utcnow().isoformat() + "Z"
+                    )
+
+            elif prompt_type == "translate":
+                logger.info(f"Sending translate prompt...")
+                response = await sys_prompt_object.set_real_time_prompt(
+                    context=doc_context,
+                    prompt_type=prompt_type,
+                    response_language=response_language
+                )
+            else:
+                logger.info(f"Sending summarize prompt...")
+                response = await sys_prompt_object.set_real_time_prompt(
+                    context=doc_context,
+                    prompt_type=prompt_type
+                )
+            result = response["response"]
     except Exception as e:
         logger.exception("Error during prompt processing")
         return RTASErrorResponseModel(
@@ -446,7 +477,6 @@ async def real_time_ai_service(
         action=action.value,
         account_id=account_id,
         chat_id=chat_id,
-        sequence=sequence,
         message_request=message_request,
         message_response=result,
         file_name=file_name,
@@ -467,13 +497,12 @@ async def delete_record(
     try:
         # 初始化 Repository 與 UseCase
         repo = DocumentRepository(db_session)
-        ai_search_use_case = AISearchUseCase()
 
-        deleted = repo.delete_document_id_and_file_name(document_id, file_name)
+        deleted = await repo.delete_document_id_and_file_name(document_id, file_name)
         if not deleted:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        await ai_search_use_case.delete_document_by_id_and_file_name(document_id, file_name)
+        await ai_search_use_case_object.delete_document_by_id_and_file_name(document_id, file_name)
 
         return DRSuccessResponseModel(
             status="success",
@@ -569,8 +598,7 @@ async def expired_contract_preprocess(
     session: Session = app.state.db.get_session()
     try:
         doc_repo = DocumentRepository(session)
-        ai_search_use_case = AISearchUseCase()
-        existing_doc = doc_repo.get_document(document_id)
+        existing_doc = await doc_repo.get_document_by_id_and_file_name(document_id, file.filename)
 
         if existing_doc:
             old_ai_search_id = existing_doc.ai_search_id
@@ -582,10 +610,10 @@ async def expired_contract_preprocess(
                 qna_context=None,
                 updated_by=account_id
             )
-            doc_repo.update_document(document_id, update_data)
+            await doc_repo.update_document(document_id, update_data)
 
-            await ai_search_use_case.delete_document(old_ai_search_id)
-            await ai_search_use_case.upload_single_document(
+            await ai_search_use_case_object.delete_document(old_ai_search_id)
+            await ai_search_use_case_object.upload_single_document(
                 id=old_ai_search_id,
                 file_id=document_id,
                 file_name=file.filename,
@@ -605,9 +633,9 @@ async def expired_contract_preprocess(
                 created_by=account_id,
                 updated_by=account_id
             )
-            doc_repo.create_document(create_data)
+            await doc_repo.create_document(create_data)
 
-            await ai_search_use_case.upload_single_document(
+            await ai_search_use_case_object.upload_single_document(
                 id=ai_search_id,
                 file_id=document_id,
                 file_name=file.filename,

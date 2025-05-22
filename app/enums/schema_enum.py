@@ -1,6 +1,7 @@
 # app/schemas.py
 from pydantic import BaseModel
 from typing import Optional
+from app.enums.chat_role_enum import RoleEnum
 
 class DocumentRecordCreate(BaseModel):
     doc_id: str
@@ -25,6 +26,21 @@ class DocumentRecordUpdate(BaseModel):
     summarized_context: Optional[str] = None
     qna_context: Optional[str] = None
     updated_by: str
+
+    class Config:
+        orm_mode = True
+
+class ChatRecordCreate(BaseModel):
+    chat_id: str
+    role: RoleEnum
+    message: str
+
+    class Config:
+        orm_mode = True
+
+class ChatRecordUpdate(BaseModel):
+    role: Optional[RoleEnum] = None
+    message: Optional[str] = None
 
     class Config:
         orm_mode = True

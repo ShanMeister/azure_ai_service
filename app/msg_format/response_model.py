@@ -25,7 +25,7 @@ class ASSuccessResponseModel(BaseModel):
 # Error response model
 class ASErrorResponseModel(BaseModel):
     status: str = "error"
-    action: str
+    action: Optional[str] = None
     error_message: str
     error_code: int
     timestamp: str
@@ -49,8 +49,7 @@ class RTASSuccessResponseModel(BaseModel):
     status: str = "success"
     action: str
     account_id: str
-    chat_id: str
-    sequence: Optional[str] = None
+    chat_id: Optional[str] = None
     message_request: Optional[str] = None
     message_response: str
     file_name: str

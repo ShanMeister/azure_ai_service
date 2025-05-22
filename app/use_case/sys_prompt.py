@@ -1,5 +1,5 @@
 import os
-from loguru import logger
+from app.utils.logger import init_logger
 from typing import Optional
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -8,6 +8,7 @@ from app.enums.prompt_enum import PromptEnum
 from dotenv import load_dotenv
 from src.doc2rag.config_utils import PathConfig
 
+logger = init_logger()
 load_dotenv('app/conf/.env')
 
 class SysPromptClass:
@@ -110,7 +111,7 @@ class SysPromptClass:
         logger.info(f"Success get {prompt_type} response from AOAI...")
         return response
 
-    async def set_real_time_prompt(self, context, prompt_type, message_request: Optional[str] = None, response_language: Optional[str] = None):
+    async def set_real_time_prompt(self, context, prompt_type, message_request: Optional[str] = None, response_language: Optional[str] = None, chat_history: Optional[str] = None):
         if prompt_type == PromptEnum.summarize:
             prompt_text = f"""
                 You are a legal expert specializing in contract analysis.
@@ -165,15 +166,25 @@ class SysPromptClass:
                     LANGUAGE:
                     - Detect the language used in the USER QUESTION.
                     - Respond in the same language as the USER QUESTION.
-                    - If USER QUESTION is in chinese, always reply in traditional chinese.
+                    - If the question is in Chinese, always use traditional chinese.
+                    
+                    CHAT HISTORY:
+                    The following is the past conversation between the user and assistant. Use it as background context to maintain consistency and relevance in the response.
+                    {chat_history}
                     
                     CONTEXT:
+                    Use this document context as a knowledge source when answering the question.
                     ```markdown
                     {context}
                     ```
 
                     USER QUESTION:
                     {message_request}
+                    
+                    RESPONSE INSTRUCTIONS:
+                    - Base your answer solely on the CHAT HISTORY and CONTEXT provided.
+                    - Do not invent any facts.
+                    - Be legally accurate and professional.
                     """
         else:
             raise ValueError(f"Unsupported prompt type: {prompt_type}")
