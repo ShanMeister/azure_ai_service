@@ -83,7 +83,6 @@ async def auto_ai_service(
     account_id: str = Form(...),
     document_id: str = Form(...),
     document_type: Optional[str] = Form(None),
-    chat_id : Optional[str] = Form(None),
     response_language: Optional[str] = Form(None),
     model: Optional[str] = Form(None),
     output_format: Optional[str] = Form(None),
@@ -131,20 +130,21 @@ async def auto_ai_service(
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
 
-    if not chat_id or chat_id == '':
-        chat_id = str(uuid.uuid4())
-
+    current_step=''
     try:
+        merged_bundle = await handle_action(file)
         current_step = "summarize"
-        summarized_result, _ = await handle_action(file, PromptEnum.summarize)
-        await file.seek(0)
+        summarized_result = await sys_prompt_object.set_prompt(merged_bundle, PromptEnum.summarize)
+        logger.info(f"Success to get result from AOAI for {PromptEnum.summarize}: {summarized_result}")
 
         current_step = "translate"
-        translated_result, _ = await handle_action(file, PromptEnum.translate)
-        await file.seek(0)
+        translated_result = await sys_prompt_object.set_prompt(merged_bundle, PromptEnum.translate)
+        logger.info(f"Success to get result from AOAI for {PromptEnum.translate}: {translated_result}")
 
         current_step = "qna"
-        qna_result, preprocessed_data = await handle_action(file, PromptEnum.qna)
+        qna_result = await sys_prompt_object.set_prompt(merged_bundle, PromptEnum.qna)
+        logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
+        preprocessed_data = merged_bundle
 
     except Exception as e:
         logger.error(f"LLM service failed during {current_step}: {e}")
@@ -670,7 +670,7 @@ async def expired_contract_preprocess(
 async def health_check():
     return {"status": "Alive"}
 
-async def handle_action(file: UploadFile, prompt_enum: PromptEnum):
+async def handle_action(file: UploadFile):
     try:
         os.makedirs(SAVE_FILE_PATH, exist_ok=True)
         save_path = os.path.join(SAVE_FILE_PATH, file.filename)
@@ -678,16 +678,13 @@ async def handle_action(file: UploadFile, prompt_enum: PromptEnum):
 
         merged_bundle = await run_ai_service_pipeline()
         if not merged_bundle or merged_bundle.strip() == "":
-            msg = f"Empty response from AI pipeline for {prompt_enum.value}"
+            msg = f"Empty response from Document Intelligence pipeline"
             logger.error(msg)
             raise ValueError(msg)
-
-        result = await sys_prompt_object.set_prompt(merged_bundle, prompt_enum)
-        logger.info(f"Success to get result from AOAI for {prompt_enum.value}: {result}")
-        return result, merged_bundle
+        return merged_bundle
     except Exception as e:
-        logger.exception(f"Exception in handle_action() for {prompt_enum.value}: {e}")
-        raise RuntimeError(f"handle_action failed during {prompt_enum.value}: {e}")
+        logger.exception(f"Exception in handle_action(): {e}")
+        raise RuntimeError(f"handle_action failed during Document Intelligence pipeline: {e}")
 
 if __name__ == '__main__':
     uvicorn.run(
