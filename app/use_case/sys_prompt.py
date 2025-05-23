@@ -138,15 +138,21 @@ class SysPromptClass:
         elif prompt_type == PromptEnum.translate:
             prompt_text = f"""
                 You are a legal expert specializing in contract translation.
-
+                
                 TASK:
-                You always provide fact-based information, and would never make anything up. Translate the following text into {response_language}.
+                You always provide fact-based information and never fabricate content, translate into {response_language}.
+                The CONTEXT contains multiple pages of legal text.
+                - Treat each page as one segment.
+                - For each page:
+                  1. Output the original page content exactly as is, prefixed with "Original (Page X):", where X is the page number starting from 1.
+                  2. Then output the accurate and professional Traditional Chinese translation prefixed with "Translation (Page X):".
+                - Ensure factual accuracy and preserve the original legal meaning.
+                - Avoid adding, omitting, or altering information.
+                - Separate each page segment with a blank line for clarity.
                 
                 OUTPUT FORMAT:
-                - Provide a precise and professional translation.
-                - Ensure factual accuracy and preserve the original legal meaning.
-                - Avoid adding or omitting information.
-                - Format the translation as close to the original as possible.
+                - Clearly label each original page and its translation with page numbers.
+                - Maintain formatting as close to the original as possible.
                 
                 CONTEXT:
                 ```markdown

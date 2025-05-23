@@ -169,7 +169,7 @@ async def auto_ai_service(
     try:
         with app.state.db.get_session() as session:
             doc_repo = DocumentRepository(session)
-            existing_doc = await doc_repo.get_document_by_id_and_file_name(document_id, file.filename)
+            existing_doc = await doc_repo.get_document(document_id)
 
             if existing_doc:
                 old_ai_search_id = existing_doc.ai_search_id
@@ -598,7 +598,7 @@ async def expired_contract_preprocess(
     session: Session = app.state.db.get_session()
     try:
         doc_repo = DocumentRepository(session)
-        existing_doc = await doc_repo.get_document_by_id_and_file_name(document_id, file.filename)
+        existing_doc = await doc_repo.get_document(document_id)
 
         if existing_doc:
             old_ai_search_id = existing_doc.ai_search_id
