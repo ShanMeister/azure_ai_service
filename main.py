@@ -1,11 +1,10 @@
 import os
-import sys
 import uvicorn
 import uuid
 
-from exceptiongroup import catch
 from app.utils.logger import init_logger
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from starlette.responses import JSONResponse
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from datetime import datetime
@@ -17,26 +16,27 @@ from app.enums.action_enum import ActionEnum, RealTimeActionEnum
 from app.enums.prompt_enum import PromptEnum
 from app.enums.search_enum import SearchTypeEnum, SearchThresholdEnum
 from app.enums.translation_enum import TranslationEnum
-from app.enums.schema_enum import DocumentRecordCreate, DocumentRecordUpdate, ChatRecordCreate, ChatRecordUpdate
+from app.enums.schema_enum import DocumentRecordCreate, DocumentRecordUpdate, ChatRecordCreate
 from app.enums.chat_role_enum import RoleEnum
 from app.msg_format.response_model import ASSuccessResponseModel, ASErrorResponseModel, CSSuccessResponseModel, CSErrorResponseModel, RTASSuccessResponseModel, RTASErrorResponseModel, DRSuccessResponseModel, DRErrorResponseModel, AIServiceResultModel, EXCPSuccessResponseModel, EXCPErrorResponseModel, ExpiredContractResultModel
 from src.doc2rag.pipeline.file_flows import file_initialize_flow
 from app.utils.file_process import FileProcessClass
-from app.use_case.sys_prompt import SysPromptClass
+from app.repository.sys_prompt_services import SysPromptClass
 from pipeline import run_ai_service_pipeline
 from app.use_case.rag_processing import RAGUseCase
-from app.repository.database import Database, get_db
+from app.repository.database import Database
 from app.repository.repository import DocumentRepository, ChatRecordRepository
 from app.use_case.ai_search_use_case import AISearchUseCase
 from app.use_case.file_processing import FileProcessUseCase
 from app.use_case.chat_use_case import ChatUseCase
+from app.use_case.prompt_use_case import PromptUseCase
 
 load_dotenv('app/conf/.env')
 logger = init_logger()
 logger.info("Application starting...")
 
 # file type constraints
-allowed_extensions = {".pdf", ".docx"}
+allowed_extensions = {".pdf", ".docx", ".doc"}
 SAVE_FILE_PATH = os.getenv('SAVE_API_FILE_PATH')
 
 # === Lifespan Event ===
@@ -65,10 +65,10 @@ app = FastAPI(lifespan=lifespan)
 # pdf_use_case_object = PDFProcessingUseCase()
 rag_use_case_object = RAGUseCase()
 file_process_object = FileProcessClass()
-sys_prompt_object = SysPromptClass()
 fast_file_process_object = FileProcessUseCase()
 ai_search_use_case_object = AISearchUseCase()
 chat_use_case_object = ChatUseCase()
+prompt_use_case = PromptUseCase(SysPromptClass())
 
 
 # API-1 service
@@ -134,15 +134,15 @@ async def auto_ai_service(
     try:
         merged_bundle = await handle_action(file)
         current_step = "summarize"
-        summarized_result = await sys_prompt_object.set_prompt(merged_bundle, PromptEnum.summarize)
+        summarized_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.summarize)
         logger.info(f"Success to get result from AOAI for {PromptEnum.summarize}: {summarized_result}")
 
         current_step = "translate"
-        translated_result = await sys_prompt_object.set_prompt(merged_bundle, PromptEnum.translate)
+        translated_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.translate)
         logger.info(f"Success to get result from AOAI for {PromptEnum.translate}: {translated_result}")
 
         current_step = "qna"
-        qna_result = await sys_prompt_object.set_prompt(merged_bundle, PromptEnum.qna)
+        qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna)
         logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
         preprocessed_data = merged_bundle
 
@@ -393,84 +393,88 @@ async def real_time_ai_service(
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
 
-    try:
-        # Align action to prompt_type
-        prompt_type = action.value  # 'summarize', 'translate', 'chat'
-        with app.state.db.get_session() as session:
-            # Call Azure OpenAI model to process data
-            if prompt_type == "chat":
-                chat_repo = ChatRecordRepository(session)
-                try:
-                    # 取得歷史紀錄與 sequence
-                    logger.info(f"Start chat process...")
-                    chat_exists = await chat_repo.check_chat_id_exists(chat_id)
-                    histories = await chat_repo.get_history_by_chat_id(chat_id) if chat_exists else []
-                    latest_sequence = await chat_repo.get_latest_sequence(chat_id) or 0
-                    logger.info(f"Getting chat histories...")
-                    chat_histories = chat_use_case_object.build_context_from_history(
-                        histories=histories,
-                        sequence=latest_sequence,
-                        window=10
-                    )
-                    logger.info(f"Sending chat prompt...")
-                    # 送出 prompt，帶入上下文
-                    response = await sys_prompt_object.set_real_time_prompt(
+    # check idf the markdown has context or not
+    if "#" not in doc_context:
+        result = "Get empty markdown from this file."
+    else:
+        try:
+            # Align action to prompt_type
+            prompt_type = action.value  # 'summarize', 'translate', 'chat'
+            with app.state.db.get_session() as session:
+                # Call Azure OpenAI model to process data
+                if prompt_type == "chat":
+                    chat_repo = ChatRecordRepository(session)
+                    try:
+                        # 取得歷史紀錄與 sequence
+                        logger.info(f"Start chat process...")
+                        chat_exists = await chat_repo.check_chat_id_exists(chat_id)
+                        histories = await chat_repo.get_history_by_chat_id(chat_id) if chat_exists else []
+                        latest_sequence = await chat_repo.get_latest_sequence(chat_id) or 0
+                        logger.info(f"Getting chat histories...")
+                        chat_histories = chat_use_case_object.build_context_from_history(
+                            histories=histories,
+                            sequence=latest_sequence,
+                            window=10
+                        )
+                        logger.info(f"Sending chat prompt...")
+                        # 送出 prompt，帶入上下文
+                        response = await prompt_use_case.run_real_time_prompt(
+                            context=doc_context,
+                            prompt_type=prompt_type,
+                            message_request=message_request,
+                            chat_history=chat_histories
+                        )
+                        logger.info(f"Saving chat record...")
+                        # 新增 USER 訊息
+                        await chat_repo.insert_message(
+                            ChatRecordCreate(
+                                chat_id=chat_id,
+                                role=RoleEnum.user,
+                                message=message_request
+                            )
+                        )
+
+                        # 新增 AI 回覆訊息
+                        await chat_repo.insert_message(
+                            ChatRecordCreate(
+                                chat_id=chat_id,
+                                role=RoleEnum.ai,
+                                message=response["response"]
+                            )
+                        )
+                    except Exception as e:
+                        logger.error(f"[chat] Failed during DB or prompt handling: {e}")
+                        return RTASErrorResponseModel(
+                            status="error",
+                            action=action.value,
+                            error_message=str(e),
+                            error_code=500,
+                            timestamp=datetime.utcnow().isoformat() + "Z"
+                        )
+
+                elif prompt_type == "translate":
+                    logger.info(f"Sending translate prompt...")
+                    response = await prompt_use_case.run_real_time_prompt(
                         context=doc_context,
                         prompt_type=prompt_type,
-                        message_request=message_request,
-                        chat_history=chat_histories
+                        response_language=response_language
                     )
-                    logger.info(f"Saving chat record...")
-                    # 新增 USER 訊息
-                    await chat_repo.insert_message(
-                        ChatRecordCreate(
-                            chat_id=chat_id,
-                            role=RoleEnum.user,
-                            message=message_request
-                        )
+                else:
+                    logger.info(f"Sending summarize prompt...")
+                    response = await prompt_use_case.run_real_time_prompt(
+                        context=doc_context,
+                        prompt_type=prompt_type
                     )
-
-                    # 新增 AI 回覆訊息
-                    await chat_repo.insert_message(
-                        ChatRecordCreate(
-                            chat_id=chat_id,
-                            role=RoleEnum.ai,
-                            message=response["response"]
-                        )
-                    )
-                except Exception as e:
-                    logger.error(f"[chat] Failed during DB or prompt handling: {e}")
-                    return RTASErrorResponseModel(
-                        status="error",
-                        action=action.value,
-                        error_message=str(e),
-                        error_code=500,
-                        timestamp=datetime.utcnow().isoformat() + "Z"
-                    )
-
-            elif prompt_type == "translate":
-                logger.info(f"Sending translate prompt...")
-                response = await sys_prompt_object.set_real_time_prompt(
-                    context=doc_context,
-                    prompt_type=prompt_type,
-                    response_language=response_language
-                )
-            else:
-                logger.info(f"Sending summarize prompt...")
-                response = await sys_prompt_object.set_real_time_prompt(
-                    context=doc_context,
-                    prompt_type=prompt_type
-                )
-            result = response["response"]
-    except Exception as e:
-        logger.exception("Error during prompt processing")
-        return RTASErrorResponseModel(
-            status="error",
-            action=action.value,
-            error_message=str(e),
-            error_code=500,
-            timestamp=datetime.utcnow().isoformat() + "Z"
-        )
+                result = response["response"]
+        except Exception as e:
+            logger.exception("Error during prompt processing")
+            return RTASErrorResponseModel(
+                status="error",
+                action=action.value,
+                error_message=str(e),
+                error_code=500,
+                timestamp=datetime.utcnow().isoformat() + "Z"
+            )
 
     return RTASSuccessResponseModel(
         status="success",
@@ -686,10 +690,37 @@ async def handle_action(file: UploadFile):
         logger.exception(f"Exception in handle_action(): {e}")
         raise RuntimeError(f"handle_action failed during Document Intelligence pipeline: {e}")
 
+@app.get("/health_check/aoai")
+async def aoai_health_check():
+    try:
+        # 初始化 SysPromptClass 與其 AOAI 模型
+        test_context = "This is a health check ping."
+
+        # 使用 summarize prompt 嘗試 call 一次
+        response = await prompt_use_case.run_prompt("ping", PromptEnum.summarize)
+
+        if response:
+            return JSONResponse(status_code=200, content={
+                "status": "ok",
+                "message": "AOAI model is alive.",
+            })
+        else:
+            return JSONResponse(status_code=503, content={
+                "status": "error",
+                "message": "AOAI model did not return a valid response."
+            })
+    except Exception as e:
+        return JSONResponse(status_code=503, content={
+            "status": "error",
+            "message": "Exception occurred during AOAI health check.",
+            "detail": str(e)
+        })
+
 if __name__ == '__main__':
     uvicorn.run(
         app="main:app",
         host=os.getenv('APP_SERVER_HOST'),
         port=int(os.getenv('APP_SERVER_PORT')),
         workers=int(os.getenv('APP_SERVER_WORKER')),
+        reload = True
     )

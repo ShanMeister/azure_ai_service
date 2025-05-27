@@ -61,6 +61,10 @@ class SysPromptClass:
                 - Avoid adding, omitting, or altering information.
                 - Separate each page segment with a blank line for clarity.
                 
+                IMPORTANT:
+                - DO NOT write any introduction, explanation, or additional description before or after the output.
+                - ONLY output the content in the following strict format.
+                
                 OUTPUT FORMAT:
                 - Clearly label each original page and its translation with page numbers.
                 - Maintain formatting as close to the original as possible.
@@ -149,6 +153,10 @@ class SysPromptClass:
                 - Ensure factual accuracy and preserve the original legal meaning.
                 - Avoid adding, omitting, or altering information.
                 - Separate each page segment with a blank line for clarity.
+                
+                IMPORTANT:
+                - DO NOT write any introduction, explanation, or additional description before or after the output.
+                - ONLY output the content in the following strict format.
                 
                 OUTPUT FORMAT:
                 - Clearly label each original page and its translation with page numbers.
