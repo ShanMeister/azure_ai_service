@@ -7,8 +7,10 @@ class PromptUseCase:
         self.prompt_service = prompt_service
 
     async def run_prompt(self, context: str, prompt_type: PromptEnum):
-        # 可加入額外邏輯或記錄 trace_id, 使用者驗證等
-        return await self.prompt_service.set_prompt(context, prompt_type)
+        result_context = await self.prompt_service.set_prompt(context, prompt_type)
+        processed_context = self.remove_figure_section(result_context['response'])
+        result_context['response'] = processed_context
+        return result_context
 
     async def run_real_time_prompt(self, context: str, prompt_type: PromptEnum, message_request: str = None,
                                     response_language: str = None, chat_history: str = None):
