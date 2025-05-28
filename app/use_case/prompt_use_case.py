@@ -7,10 +7,7 @@ class PromptUseCase:
         self.prompt_service = prompt_service
 
     async def run_prompt(self, context: str, prompt_type: PromptEnum):
-        result_context = await self.prompt_service.set_prompt(context, prompt_type)
-        processed_context = self.remove_figure_section(result_context['response'])
-        result_context['response'] = processed_context
-        return result_context
+        return await self.prompt_service.set_prompt(context, prompt_type)
 
     async def run_real_time_prompt(self, context: str, prompt_type: PromptEnum, message_request: str = None,
                                     response_language: str = None, chat_history: str = None):
@@ -21,8 +18,9 @@ class PromptUseCase:
             response_language=response_language,
             chat_history=chat_history
         )
-        processed_context = self.remove_figure_section(result_context['response'])
-        result_context['response'] = processed_context
+        if prompt_type == PromptEnum.translate:
+            processed_context = self.remove_figure_section(result_context['response'])
+            result_context['response'] = processed_context
         return result_context
 
     def remove_figure_section(self, markdown_text: str):
