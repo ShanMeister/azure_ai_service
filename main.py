@@ -129,31 +129,37 @@ async def auto_ai_service(
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
 
-    current_step=''
+    # Data preprocess
     try:
         merged_bundle = await handle_action(file)
-        current_step = "summarize"
-        summarized_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.summarize)
-        logger.info(f"Success to get result from AOAI for {PromptEnum.summarize}: {summarized_result}")
-
-        current_step = "translate"
-        translated_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.translate)
-        logger.info(f"Success to get result from AOAI for {PromptEnum.translate}: {translated_result}")
-
-        current_step = "qna"
-        qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna)
-        logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
-        preprocessed_data = merged_bundle
-
     except Exception as e:
-        logger.error(f"LLM service failed during {current_step}: {e}")
+        logger.error(f"LLM service failed during 'preprocessing': {e}")
         return ASErrorResponseModel(
             status="error",
-            action=current_step,
-            error_message=f"Error while processing '{current_step}' service.",
-            error_code=500,
+            action=None,
+            error_message="The 'account_id' parameter is required.",
+            error_code=400,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
+    # Send prompt
+    try:
+        summarized_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.summarize)
+        logger.info(f"Success to get result from AOAI for {PromptEnum.summarize}: {summarized_result}")
+    except Exception as e:
+        logger.error(f"LLM service failed during 'summarize': {e}")
+        summarized_result = None
+    try:
+        translated_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.translate)
+        logger.info(f"Success to get result from AOAI for {PromptEnum.translate}: {translated_result}")
+    except Exception as e:
+        logger.error(f"LLM service failed during 'translate': {e}")
+        translated_result = None
+    try:
+        qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna)
+        logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
+    except Exception as e:
+        logger.error(f"LLM service failed during 'qna': {e}")
+        qna_result = None
 
     if not any([summarized_result, translated_result, qna_result]):
         return ASErrorResponseModel(
@@ -174,7 +180,7 @@ async def auto_ai_service(
                 old_ai_search_id = existing_doc.ai_search_id
                 update_data = DocumentRecordUpdate(
                     file_name=file.filename,
-                    preprocessed_content=preprocessed_data,
+                    preprocessed_content=merged_bundle,
                     translated_context=translated_result,
                     summarized_context=summarized_result,
                     qna_context=qna_result,
@@ -187,7 +193,7 @@ async def auto_ai_service(
                     id=old_ai_search_id,
                     file_id=document_id,
                     file_name=file.filename,
-                    content=preprocessed_data
+                    content=merged_bundle
                 )
             else:
                 ai_search_id = str(uuid.uuid4())
@@ -196,7 +202,7 @@ async def auto_ai_service(
                     file_name=file.filename,
                     ai_search_id=ai_search_id,
                     doc_content=None,
-                    preprocessed_content=preprocessed_data,
+                    preprocessed_content=merged_bundle,
                     translated_context=translated_result,
                     summarized_context=summarized_result,
                     qna_context=qna_result,
@@ -209,7 +215,7 @@ async def auto_ai_service(
                     id=ai_search_id,
                     file_id=document_id,
                     file_name=file.filename,
-                    content=preprocessed_data
+                    content=merged_bundle
                 )
 
     except Exception as e:
@@ -232,7 +238,7 @@ async def auto_ai_service(
             summarize=summarized_result,
             translate=translated_result,
             qna=qna_result,
-            processed_content=preprocessed_data
+            processed_content=merged_bundle
         ),
         file_name=file.filename,
         response_language=response_language,
