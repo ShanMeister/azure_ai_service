@@ -59,7 +59,7 @@ async def di_flow():
     from doc2rag.page_split import SplitFilesProcessor
     from doc2rag.figure import FigureDescriptionGenerator
     from doc2rag.bundle import TextTableImageBundler, BundleStatusUpdateAgent
-    from doc2rag.chunking import ChunkGenerator
+    # from doc2rag.chunking import ChunkGenerator
 
     sql_agent = SQLAgent()
     await DIProcessor(sql_agent).run()

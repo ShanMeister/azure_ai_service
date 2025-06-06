@@ -50,10 +50,9 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("Database connection failed.") from e
 
     file_initialize_flow()
-
     yield
 
-    # 關閉資料庫連線
+    # Close DB connection
     if hasattr(app.state, "db"):
         app.state.db._engine.dispose()
         logger.info("Database connection closed.")
@@ -453,11 +452,12 @@ async def real_time_ai_service(
                         )
 
                 elif prompt_type == "translate":
-                    logger.info(f"Sending translate prompt...")
+                    language = next((lang for lang in TranslationEnum if lang.value == response_language),None)
+                    logger.info(f"Sending {language.name} translate prompt...")
                     response = await prompt_use_case.run_real_time_prompt(
                         context=doc_context,
                         prompt_type=prompt_type,
-                        response_language=response_language
+                        response_language=language.name
                     )
                 else:
                     logger.info(f"Sending summarize prompt...")
@@ -674,22 +674,6 @@ async def expired_contract_preprocess(
 async def health_check():
     return {"status": "Alive"}
 
-async def handle_action(file: UploadFile):
-    try:
-        os.makedirs(SAVE_FILE_PATH, exist_ok=True)
-        save_path = os.path.join(SAVE_FILE_PATH, file.filename)
-        await file_process_object.save_upload_file(file, save_path)
-
-        merged_bundle = await run_ai_service_pipeline()
-        if not merged_bundle or merged_bundle.strip() == "":
-            msg = f"Empty response from Document Intelligence pipeline"
-            logger.error(msg)
-            raise ValueError(msg)
-        return merged_bundle
-    except Exception as e:
-        logger.exception(f"Exception in handle_action(): {e}")
-        raise RuntimeError(f"handle_action failed during Document Intelligence pipeline: {e}")
-
 @app.get("/health_check/aoai")
 async def aoai_health_check():
     try:
@@ -716,11 +700,26 @@ async def aoai_health_check():
             "detail": str(e)
         })
 
+async def handle_action(file: UploadFile):
+    try:
+        os.makedirs(SAVE_FILE_PATH, exist_ok=True)
+        save_path = os.path.join(SAVE_FILE_PATH, file.filename)
+        await file_process_object.save_upload_file(file, save_path)
+
+        merged_bundle = await run_ai_service_pipeline()
+        if not merged_bundle or merged_bundle.strip() == "":
+            raise ValueError("Empty response from Document Intelligence pipeline")
+        return merged_bundle
+    except Exception as e:
+        logger.exception(f"Exception in handle_action(): {e}")
+        raise RuntimeError(f"handle_action failed during Document Intelligence pipeline: {e}")
+
+
 if __name__ == '__main__':
     uvicorn.run(
         app="main:app",
         host=os.getenv('APP_SERVER_HOST'),
         port=int(os.getenv('APP_SERVER_PORT')),
         workers=int(os.getenv('APP_SERVER_WORKER')),
-        reload = True
+        reload=False
     )

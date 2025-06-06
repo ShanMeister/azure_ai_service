@@ -1,6 +1,6 @@
 from enum import Enum
 
 class TranslationEnum(str, Enum):
-    traditional_chinese = "zh-TW"
-    english = "en-US"
-    japanese = "ja-JP"
+    traditional_chinese = "zh_TW"
+    english = "en_US"
+    japanese = "ja_JP"
