@@ -2,9 +2,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 class AIServiceResultModel(BaseModel):
-    summarize: str
-    translate: str
-    qna: str
+    summarize: Optional[str] = None
+    translate: Optional[str] = None
+    qna: Optional[str] = None
     processed_content: str
 
 class ExpiredContractResultModel(BaseModel):

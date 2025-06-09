@@ -148,12 +148,12 @@ async def auto_ai_service(
     except Exception as e:
         logger.error(f"LLM service failed during 'summarize': {e}")
         summarized_result = None
-    try:
-        translated_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.translate)
-        logger.info(f"Success to get result from AOAI for {PromptEnum.translate}: {translated_result}")
-    except Exception as e:
-        logger.error(f"LLM service failed during 'translate': {e}")
-        translated_result = None
+    # try:
+    #     translated_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.translate)
+    #     logger.info(f"Success to get result from AOAI for {PromptEnum.translate}: {translated_result}")
+    # except Exception as e:
+    #     logger.error(f"LLM service failed during 'translate': {e}")
+    #     translated_result = None
     try:
         qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna)
         logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
@@ -161,7 +161,7 @@ async def auto_ai_service(
         logger.error(f"LLM service failed during 'qna': {e}")
         qna_result = None
 
-    if not any([summarized_result, translated_result, qna_result]):
+    if not any([summarized_result, qna_result]):
         return ASErrorResponseModel(
             status="error",
             action=None,
@@ -181,7 +181,7 @@ async def auto_ai_service(
                 update_data = DocumentRecordUpdate(
                     file_name=file.filename,
                     preprocessed_content=merged_bundle,
-                    translated_context=translated_result,
+                    translated_context=None,
                     summarized_context=summarized_result,
                     qna_context=qna_result,
                     updated_by=account_id
@@ -203,7 +203,7 @@ async def auto_ai_service(
                     ai_search_id=ai_search_id,
                     doc_content=None,
                     preprocessed_content=merged_bundle,
-                    translated_context=translated_result,
+                    translated_context=None,
                     summarized_context=summarized_result,
                     qna_context=qna_result,
                     created_by=account_id,
@@ -236,7 +236,7 @@ async def auto_ai_service(
         document_type=document_type if document_type else None,
         message_response=AIServiceResultModel(
             summarize=summarized_result,
-            translate=translated_result,
+            translate=None,
             qna=qna_result,
             processed_content=merged_bundle
         ),
