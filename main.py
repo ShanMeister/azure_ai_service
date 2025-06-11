@@ -1,6 +1,7 @@
 import os
 import uvicorn
 import uuid
+import re
 
 from app.utils.logger import init_logger
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
@@ -399,7 +400,7 @@ async def real_time_ai_service(
             )
 
     # check idf the markdown has context or not
-    if "#" not in doc_context:
+    if not re.search(r'[a-zA-Z]', doc_context):
         result = "Get empty markdown from this file."
     else:
         try:
