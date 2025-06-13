@@ -149,7 +149,7 @@ class SysPromptClass:
                 - Treat each page as one segment.
                 - For each page:
                   1. Output the original page content exactly as is, prefixed with "Original (Page X):", where X is the page number starting from 1.
-                  2. Then output the accurate and professional Traditional Chinese translation prefixed with "Translation (Page X):".
+                  2. Then output the accurate and professional translation prefixed with "Translation (Page X):".
                 - Ensure factual accuracy and preserve the original legal meaning.
                 - Avoid adding, omitting, or altering information.
                 - Separate each page segment with a blank line for clarity.
