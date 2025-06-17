@@ -83,7 +83,7 @@ async def auto_ai_service(
     account_id: str = Form(...),
     document_id: str = Form(...),
     document_type: Optional[str] = Form(None),
-    response_language: Optional[str] = Form(None),
+    response_language: TranslationEnum = Form(...),
     model: Optional[str] = Form(None),
     output_format: Optional[str] = Form(None),
     file: UploadFile = File(...)
@@ -144,7 +144,9 @@ async def auto_ai_service(
         )
     # Send prompt
     try:
-        summarized_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.summarize)
+        language = next((lang for lang in TranslationEnum if lang.value == response_language), None)
+        logger.info(f"Sending {language.name} translate prompt...")
+        summarized_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.summarize, language.name)
         logger.info(f"Success to get result from AOAI for {PromptEnum.summarize}: {summarized_result}")
     except Exception as e:
         logger.error(f"LLM service failed during 'summarize': {e}")
@@ -389,12 +391,12 @@ async def real_time_ai_service(
             )
         if not chat_id or chat_id == '':
             chat_id = str(uuid.uuid4())
-    elif action == RealTimeActionEnum.translate:
+    elif action == RealTimeActionEnum.translate or action == RealTimeActionEnum.summarize:
         if not response_language:
             return RTASErrorResponseModel(
                 status="error",
                 action=action.value,
-                error_message="The 'response_language' parameter is required when action is 'translate'.",
+                error_message="The 'response_language' parameter is required when action is 'translate' or 'summarize'.",
                 error_code=400,
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
@@ -467,10 +469,12 @@ async def real_time_ai_service(
                         response_language=language.name
                     )
                 else:
-                    logger.info(f"Sending summarize prompt...")
+                    language = next((lang for lang in TranslationEnum if lang.value == response_language), None)
+                    logger.info(f"Sending {language.name} summarize prompt...")
                     response = await prompt_use_case.run_real_time_prompt(
                         context=doc_context,
-                        prompt_type=prompt_type
+                        prompt_type=prompt_type,
+                        response_language=language.name
                     )
                 result = response["response"]
         except Exception as e:

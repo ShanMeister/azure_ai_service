@@ -6,8 +6,8 @@ class PromptUseCase:
     def __init__(self, prompt_service: SysPromptClass):
         self.prompt_service = prompt_service
 
-    async def run_prompt(self, context: str, prompt_type: PromptEnum):
-        return await self.prompt_service.set_prompt(context, prompt_type)
+    async def run_prompt(self, context: str, prompt_type: PromptEnum, response_language: str = None):
+        return await self.prompt_service.set_prompt(context, prompt_type, response_language)
 
     async def run_real_time_prompt(self, context: str, prompt_type: PromptEnum, message_request: str = None,
                                     response_language: str = None, chat_history: str = None):
