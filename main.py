@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
+from tiktoken import encoding_for_model
 
 from app.enums.system_enum import SystemEnum
 from app.enums.action_enum import ActionEnum, RealTimeActionEnum
@@ -39,6 +40,7 @@ logger.info("Application starting...")
 # file type constraints
 allowed_extensions = {".pdf", ".docx", ".doc"}
 SAVE_FILE_PATH = os.getenv('SAVE_API_FILE_PATH')
+ENCODING = encoding_for_model(os.getenv('AOAI_MODEL'))
 
 # === Lifespan Event ===
 @asynccontextmanager
@@ -151,12 +153,14 @@ async def auto_ai_service(
     except Exception as e:
         logger.error(f"LLM service failed during 'summarize': {e}")
         summarized_result = None
+    # =====================================
     # try:
     #     translated_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.translate)
     #     logger.info(f"Success to get result from AOAI for {PromptEnum.translate}: {translated_result}")
     # except Exception as e:
     #     logger.error(f"LLM service failed during 'translate': {e}")
     #     translated_result = None
+    # =====================================
     try:
         qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna)
         logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
@@ -191,13 +195,15 @@ async def auto_ai_service(
                 )
                 await doc_repo.update_document(document_id, update_data)
 
-                await ai_search_use_case_object.delete_document(old_ai_search_id)
-                await ai_search_use_case_object.upload_single_document(
-                    id=old_ai_search_id,
-                    file_id=document_id,
-                    file_name=file.filename,
-                    content=merged_bundle
-                )
+                tokens = ENCODING.encode(merged_bundle)
+                if len(tokens) <= 8192:
+                    await ai_search_use_case_object.delete_document(old_ai_search_id)
+                    await ai_search_use_case_object.upload_single_document(
+                        id=old_ai_search_id,
+                        file_id=document_id,
+                        file_name=file.filename,
+                        content=merged_bundle
+                    )
             else:
                 ai_search_id = str(uuid.uuid4())
                 create_data = DocumentRecordCreate(
@@ -214,12 +220,14 @@ async def auto_ai_service(
                 )
                 await doc_repo.create_document(create_data)
 
-                await ai_search_use_case_object.upload_single_document(
-                    id=ai_search_id,
-                    file_id=document_id,
-                    file_name=file.filename,
-                    content=merged_bundle
-                )
+                tokens = ENCODING.encode(merged_bundle)
+                if len(tokens) <= 8192:
+                    await ai_search_use_case_object.upload_single_document(
+                        id=ai_search_id,
+                        file_id=document_id,
+                        file_name=file.filename,
+                        content=merged_bundle
+                    )
 
     except Exception as e:
         logger.error(f"DB insert error: {e}")
@@ -447,7 +455,7 @@ async def real_time_ai_service(
                             ChatRecordCreate(
                                 chat_id=chat_id,
                                 role=RoleEnum.ai,
-                                message=response["response"]
+                                message=response
                             )
                         )
                     except Exception as e:
@@ -476,7 +484,7 @@ async def real_time_ai_service(
                         prompt_type=prompt_type,
                         response_language=language.name
                     )
-                result = response["response"]
+                result = response
         except Exception as e:
             logger.exception("Error during prompt processing")
             return RTASErrorResponseModel(

@@ -206,8 +206,4 @@ class SysPromptClass:
             logger.error(f"Prompt execution failed: {str(e)}")
             raise
         logger.info(f"Success get {prompt_type} response from AOAI...")
-        return {
-            "prompt_type": prompt_type,
-            "response": response,
-            "success": True
-        }
+        return response
