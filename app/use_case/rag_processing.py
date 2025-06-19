@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 from loguru import logger
 # from src.doc2rag.rag import RAGAgent
 
-os.environ['TIKTOKEN_CACHE_DIR'] = os.getenv('CL100K_BASE')
 from langchain_community.vectorstores.azuresearch import AzureSearch, Document
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -17,6 +16,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import AzureOpenAIEmbeddings
 
 load_dotenv('app/conf/.env')
+os.environ['TIKTOKEN_CACHE_DIR'] = os.getenv('CL100K_BASE')
 
 class RAGUseCase:
     def __init__(self):

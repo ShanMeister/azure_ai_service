@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
-from tiktoken import encoding_for_model
 
 from app.enums.system_enum import SystemEnum
 from app.enums.action_enum import ActionEnum, RealTimeActionEnum
@@ -36,6 +35,9 @@ from app.use_case.prompt_use_case import PromptUseCase
 load_dotenv('app/conf/.env')
 logger = init_logger()
 logger.info("Application starting...")
+
+os.environ['TIKTOKEN_CACHE_DIR'] = os.getenv('O200K_BASE')
+from tiktoken import encoding_for_model
 
 # file type constraints
 allowed_extensions = {".pdf", ".docx", ".doc"}

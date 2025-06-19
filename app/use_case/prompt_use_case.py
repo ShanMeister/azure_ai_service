@@ -1,6 +1,5 @@
 import os
 import re
-from tiktoken import encoding_for_model
 from app.utils.logger import init_logger
 from app.repository.sys_prompt_services import SysPromptClass
 from app.enums.prompt_enum import PromptEnum
@@ -8,6 +7,8 @@ from dotenv import load_dotenv
 
 logger = init_logger()
 load_dotenv('app/conf/.env')
+os.environ['TIKTOKEN_CACHE_DIR'] = os.getenv('O200K_BASE')
+from tiktoken import encoding_for_model
 
 class PromptUseCase:
     def __init__(self, prompt_service: SysPromptClass):
