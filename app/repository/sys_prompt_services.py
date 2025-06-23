@@ -86,9 +86,7 @@ class SysPromptClass:
                 - Use the term “payment terms” instead of “financial impact” when referring to related clauses.
                 - The contract is provided in Markdown format. Use the Markdown headings and numbered clauses to locate and reference source sections.
                 LANGUAGE:
-                - Detect the language used in the CONTEXT section.
-                - Respond in the same language as the CONTEXT.
-                - If CONTEXT is in chinese, MUST reply in traditional chinese.
+                - Your response MUST be written in {response_language}. Do not use any other language or deviate from the specified format. If the desired response language is traditional chinese, you MUST always write in Traditional Chinese — even if the contract is written in Simplified Chinese.
                 OUTPUT FORMAT:
                 - Provide only the numbered list of 5 Q&A items.
                 - Each pair must use the following format:

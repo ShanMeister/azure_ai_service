@@ -164,7 +164,9 @@ async def auto_ai_service(
     #     translated_result = None
     # =====================================
     try:
-        qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna)
+        language = next((lang for lang in TranslationEnum if lang.value == response_language), None)
+        logger.info(f"Sending {language.name} Q&A prompt...")
+        qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna, language.name)
         logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
     except Exception as e:
         logger.error(f"LLM service failed during 'qna': {e}")
