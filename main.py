@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
+import asyncio
 
 from app.enums.system_enum import SystemEnum
 from app.enums.action_enum import ActionEnum, RealTimeActionEnum
@@ -54,7 +55,11 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error connecting to the database: {e}")
         raise RuntimeError("Database connection failed.") from e
 
-    file_initialize_flow()
+    try:
+        await asyncio.to_thread(file_initialize_flow)
+        logger.info("File initialization completed.")
+    except Exception as e:
+        logger.error(f"File initialization failed: {e}")
     yield
 
     # Close DB connection
@@ -737,10 +742,17 @@ async def handle_action(file: UploadFile):
         logger.exception(f"Exception in handle_action(): {e}")
         raise RuntimeError(f"handle_action failed during Document Intelligence pipeline: {e}")
 
+@app.get("/")
+def root():
+    return {"message": "NuECS API server is up."}
 
 if __name__ == '__main__':
+    # Using multiprocessing here to avoid startup deadlock in Windows env
+    import multiprocessing
+
+    multiprocessing.set_start_method("spawn", force=True)
     uvicorn.run(
-        app="main:app",
+        "main:app",
         host=os.getenv('APP_SERVER_HOST'),
         port=int(os.getenv('APP_SERVER_PORT')),
         workers=int(os.getenv('APP_SERVER_WORKER')),
