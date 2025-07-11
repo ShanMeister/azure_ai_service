@@ -3,7 +3,6 @@ import uvicorn
 import uuid
 import re
 
-from app.utils.logger import init_logger
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from starlette.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -13,6 +12,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 import asyncio
 
+from app.utils.logger import init_logger
 from app.enums.system_enum import SystemEnum
 from app.enums.action_enum import ActionEnum, RealTimeActionEnum
 from app.enums.prompt_enum import PromptEnum
@@ -45,9 +45,20 @@ allowed_extensions = {".pdf", ".docx", ".doc"}
 SAVE_FILE_PATH = os.getenv('SAVE_API_FILE_PATH')
 ENCODING = encoding_for_model(os.getenv('AOAI_MODEL'))
 
+# pdf_use_case_object = None
+rag_use_case_object = None
+file_process_object = None
+fast_file_process_object = None
+ai_search_use_case_object = None
+chat_use_case_object = None
+prompt_use_case = None
+
 # === Lifespan Event ===
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global rag_use_case_object, file_process_object, fast_file_process_object
+    global ai_search_use_case_object, chat_use_case_object, prompt_use_case
+
     try:
         app.state.db = Database().connect()
         logger.info("Successfully connected to the database.")
@@ -60,6 +71,20 @@ async def lifespan(app: FastAPI):
         logger.info("File initialization completed.")
     except Exception as e:
         logger.error(f"File initialization failed: {e}")
+
+    try:
+        rag_use_case_object = RAGUseCase()
+        file_process_object = FileProcessClass()
+        fast_file_process_object = FileProcessUseCase()
+        ai_search_use_case_object = AISearchUseCase()
+        chat_use_case_object = ChatUseCase()
+        prompt_use_case = PromptUseCase(SysPromptClass())
+        # pdf_use_case_object = PDFProcessingUseCase()
+        logger.info("All service objects initialized successfully.")
+    except Exception as e:
+        logger.error(f"Service objects initialization failed: {e}")
+        raise RuntimeError("Services initialization failed.") from e
+
     yield
 
     # Close DB connection
@@ -67,18 +92,8 @@ async def lifespan(app: FastAPI):
         app.state.db._engine.dispose()
         logger.info("Database connection closed.")
 
-
 # === FastAPI App ===
 app = FastAPI(lifespan=lifespan)
-
-# pdf_use_case_object = PDFProcessingUseCase()
-rag_use_case_object = RAGUseCase()
-file_process_object = FileProcessClass()
-fast_file_process_object = FileProcessUseCase()
-ai_search_use_case_object = AISearchUseCase()
-chat_use_case_object = ChatUseCase()
-prompt_use_case = PromptUseCase(SysPromptClass())
-
 
 # API-1 service
 @app.post("/ai_service", responses={
@@ -105,7 +120,7 @@ async def auto_ai_service(
     if file_ext not in allowed_extensions:
         return ASErrorResponseModel(
             status="error",
-            action=action.value,
+            action=None,
             error_message="Invalid file format. Only .pdf and .docx are supported.",
             error_code=400,
             timestamp=datetime.utcnow().isoformat() + "Z"
@@ -745,16 +760,3 @@ async def handle_action(file: UploadFile):
 @app.get("/")
 def root():
     return {"message": "NuECS API server is up."}
-
-if __name__ == '__main__':
-    # Using multiprocessing here to avoid startup deadlock in Windows env
-    import multiprocessing
-
-    multiprocessing.set_start_method("spawn", force=True)
-    uvicorn.run(
-        "main:app",
-        host=os.getenv('APP_SERVER_HOST'),
-        port=int(os.getenv('APP_SERVER_PORT')),
-        workers=int(os.getenv('APP_SERVER_WORKER')),
-        reload=False
-    )
