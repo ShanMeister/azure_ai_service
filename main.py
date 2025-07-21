@@ -171,7 +171,7 @@ async def auto_ai_service(
         language = next((lang for lang in TranslationEnum if lang.value == response_language), None)
         logger.info(f"Sending {language.name} translate prompt...")
         summarized_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.summarize, language.name)
-        logger.info(f"Success to get result from AOAI for {PromptEnum.summarize}: {summarized_result}")
+        logger.info(f"Success to get result from AOAI for {PromptEnum.summarize}: length({len(summarized_result)})")
     except Exception as e:
         logger.error(f"LLM service failed during 'summarize': {e}")
         summarized_result = None
@@ -187,7 +187,7 @@ async def auto_ai_service(
         language = next((lang for lang in TranslationEnum if lang.value == response_language), None)
         logger.info(f"Sending {language.name} Q&A prompt...")
         qna_result = await prompt_use_case.run_prompt(merged_bundle, PromptEnum.qna, language.name)
-        logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: {qna_result}")
+        logger.info(f"Success to get result from AOAI for {PromptEnum.qna}: length({len(qna_result)})")
     except Exception as e:
         logger.error(f"LLM service failed during 'qna': {e}")
         qna_result = None

@@ -98,7 +98,7 @@ class RAGUseCase:
             score_threshold: float = 0.1
     ) -> List[Document]:
         filters = f"file_id eq {file_id}" if file_id != -1 else None
-
+        logger.info(f"qusetion: {question}")
         # if search_type == "similarity":
         #     results = self.vector_store.similarity_search_with_score(query=question, k=top_k)
         # elif search_type == "hybrid":
@@ -107,7 +107,14 @@ class RAGUseCase:
         #     results = self.vector_store.semantic_hybrid_search_with_score(query=question, k=top_k, filters=filters)
         # else:
         #     raise ValueError(f"Unknown search_type: {search_type}")
-        results = self._vector_store.similarity_search_with_score(query=question, k=top_k)
+        # results = self._vector_store.similarity_search_with_score(query=question, k=top_k)
+        try:
+            results = self._vector_store.similarity_search_with_score(query=question, k=top_k)
+        except Exception as e:
+            logger.error(f"Error calling similarity_search_with_score: {str(e)}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            raise
 
         # 篩選符合 score 門檻的結果
         filtered_docs = [doc for doc, score in results if score >= score_threshold]
