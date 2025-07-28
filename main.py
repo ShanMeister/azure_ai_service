@@ -139,7 +139,7 @@ async def auto_ai_service(
         return ASErrorResponseModel(
             status="error",
             action=None,
-            error_message="File size exceeds the 10MB limit.",
+            error_message="The file is too large. Maximum allowed size is 10MB.",
             error_code=400,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )
@@ -369,7 +369,7 @@ async def real_time_ai_service(
             return RTASErrorResponseModel(
                 status="error",
                 action=action.value,
-                error_message="File size exceeds the 10MB limit.",
+                error_message="The file is too large. Maximum allowed size is 10MB.",
                 error_code=400,
                 timestamp=datetime.utcnow().isoformat() + "Z"
             )
@@ -435,7 +435,7 @@ async def real_time_ai_service(
 
     # check idf the markdown has context or not
     if not re.search(r'[a-zA-Z]', doc_context):
-        result = "Get empty markdown from this file."
+        result = "This file couldn’t be processed. It may contain only images without readable text."
     else:
         try:
             # Align action to prompt_type
@@ -608,7 +608,7 @@ async def expired_contract_preprocess(
     if file_size > 10 * 1024 * 1024:  # 10MB limit
         return EXCPErrorResponseModel(
             status="error",
-            error_message="File size exceeds the 10MB limit.",
+            error_message="The file is too large. Maximum allowed size is 10MB.",
             error_code=400,
             timestamp=datetime.utcnow().isoformat() + "Z"
         )

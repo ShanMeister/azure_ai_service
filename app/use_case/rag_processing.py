@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List
 from dotenv import load_dotenv
 from loguru import logger
 # from src.doc2rag.rag import RAGAgent
