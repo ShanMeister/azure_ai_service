@@ -1,11 +1,10 @@
 import os
 import re
-from app.utils.logger import init_logger
+from app.utils.logger import logger
 from app.repository.sys_prompt_services import SysPromptClass
 from app.enums.prompt_enum import PromptEnum
 from dotenv import load_dotenv
 
-logger = init_logger()
 load_dotenv('app/conf/.env')
 os.environ['TIKTOKEN_CACHE_DIR'] = os.getenv('O200K_BASE')
 from tiktoken import encoding_for_model
@@ -45,6 +44,7 @@ class PromptUseCase:
             total = len(chunks)
             for i, chunk in enumerate(chunks, start=1):
                 logger.info(f"Translating chunk {i} of {total}...")
+                logger.info(f"Translating chunk: {chunk}")
                 result = await self.prompt_service.set_real_time_prompt(
                 context=context,
                 prompt_type=prompt_type,
@@ -54,6 +54,7 @@ class PromptUseCase:
             )
                 cleaned = self.remove_figure_section(result)
                 results.append(cleaned)
+                logger.info(f"Translating chunk result: {results}")
             logger.success(f"Translation completed. Total chunks processed: {total}.")
             return results[0]
         else:

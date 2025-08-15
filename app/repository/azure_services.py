@@ -1,7 +1,7 @@
 import os
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
-from loguru import logger
+from app.utils.logger import logger
 
 
 class AzureDocumentIntelligenceRepository:

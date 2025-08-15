@@ -1,10 +1,10 @@
 import os
 from typing import List
-from loguru import logger
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.aio import SearchClient
 from openai import AsyncAzureOpenAI
 from dotenv import load_dotenv
+from app.utils.logger import logger
 
 load_dotenv('app/conf/.env')
 

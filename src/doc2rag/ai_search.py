@@ -1,7 +1,9 @@
 from typing import Generator, Union, List, Dict
 from collections import defaultdict
 from itertools import islice
-from logging import Logger
+from app.utils.logger import logger
+
+Logger = logger
 
 import requests
 from sqlalchemy.orm import Session

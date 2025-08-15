@@ -1,8 +1,9 @@
 import os
 from typing import List
 from dotenv import load_dotenv
-from loguru import logger
+from app.utils.logger import logger
 # from src.doc2rag.rag import RAGAgent
+
 
 from langchain_community.vectorstores.azuresearch import AzureSearch, Document
 from langchain_core.prompts import (

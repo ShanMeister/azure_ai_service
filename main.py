@@ -1,5 +1,4 @@
 import os
-import uvicorn
 import uuid
 import re
 
@@ -12,7 +11,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 import asyncio
 
-from app.utils.logger import init_logger
+from app.utils.logger import logger
 from app.enums.system_enum import SystemEnum
 from app.enums.action_enum import ActionEnum, RealTimeActionEnum
 from app.enums.prompt_enum import PromptEnum
@@ -34,7 +33,6 @@ from app.use_case.chat_use_case import ChatUseCase
 from app.use_case.prompt_use_case import PromptUseCase
 
 load_dotenv('app/conf/.env')
-logger = init_logger()
 logger.info("Application starting...")
 
 os.environ['TIKTOKEN_CACHE_DIR'] = os.getenv('O200K_BASE')
@@ -500,6 +498,7 @@ async def real_time_ai_service(
                         prompt_type=prompt_type,
                         response_language=language.name
                     )
+                    logger.info(f"Get translate result {response}...")
                 else:
                     language = next((lang for lang in TranslationEnum if lang.value == response_language), None)
                     logger.info(f"Sending {language.name} summarize prompt...")

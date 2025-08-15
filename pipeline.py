@@ -1,10 +1,9 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from loguru import logger
 from src.doc2rag.pipeline.file_flows import file_processing_flow, di_flow, word_scan_flow
 from src.doc2rag.pipeline.ais_flows import upload_flow
+from app.utils.logger import logger
 
 scheduler = AsyncIOScheduler()
-
 
 async def run_ai_service_pipeline():
     merged_bundle = None

@@ -1,5 +1,5 @@
 import os
-from app.utils.logger import init_logger
+from app.utils.logger import logger
 from typing import Optional
 from langchain_core.output_parsers import StrOutputParser
 from langchain.chat_models import init_chat_model
@@ -7,7 +7,6 @@ from app.enums.prompt_enum import PromptEnum
 from dotenv import load_dotenv
 from src.doc2rag.config_utils import PathConfig
 
-logger = init_logger()
 load_dotenv('app/conf/.env')
 
 class SysPromptClass:
@@ -110,7 +109,7 @@ class SysPromptClass:
                     OUTPUT FORMAT:
                     - Provide only the numbered list of 5 Q&A items.
                     - Each pair must use the following format:
-                        [Qusetion number]. 
+                        [Question number]. 
                             Q: [Question text]
                             A: [Answer text]
                     - Do NOT include any introductions, explanations, or summary statements before or after the Q&A list.
@@ -139,7 +138,7 @@ class SysPromptClass:
                     OUTPUT FORMAT:
                     - Provide only the numbered list of 5 Q&A items.
                     - Each pair must use the following format:
-                        [Qusetion number]. 
+                        [Question number]. 
                             Q: [Question text]
                             A: [Answer text]
                     - Do NOT include any introductions, explanations, or summary statements before or after the Q&A list.
