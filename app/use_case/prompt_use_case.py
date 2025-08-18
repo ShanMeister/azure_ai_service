@@ -44,7 +44,6 @@ class PromptUseCase:
             total = len(chunks)
             for i, chunk in enumerate(chunks, start=1):
                 logger.info(f"Translating chunk {i} of {total}...")
-                logger.info(f"Translating chunk: {chunk}")
                 result = await self.prompt_service.set_real_time_prompt(
                 context=context,
                 prompt_type=prompt_type,
@@ -54,9 +53,8 @@ class PromptUseCase:
             )
                 cleaned = self.remove_figure_section(result)
                 results.append(cleaned)
-                logger.info(f"Translating chunk result: {results}")
             logger.success(f"Translation completed. Total chunks processed: {total}.")
-            return results[0]
+            return "\n".join(results)
         else:
             return await self.prompt_service.set_real_time_prompt(
                 context=context,

@@ -78,7 +78,7 @@ class SysPromptClass:
                 - Separate each page segment with a blank line for clarity.
                 
                 IMPORTANT:
-                - DO NOT write any introduction, explanation, or additional description before or after the output.
+                - Make sure response WITHOUT any introduction, explanation, or additional description before or after the output.
                 - ONLY output the content in the following strict format.
                 
                 OUTPUT FORMAT:
@@ -217,7 +217,7 @@ class SysPromptClass:
                 - Separate each page segment with a blank line for clarity.
                 
                 IMPORTANT:
-                - DO NOT write any introduction, explanation, or additional description before or after the output.
+                - Make sure response WITHOUT any introduction, explanation, or additional description before or after the output.
                 - ONLY output the content in the following strict format.
                 
                 OUTPUT FORMAT:
@@ -229,6 +229,7 @@ class SysPromptClass:
                 {context}
                 ```
                 """
+
         elif prompt_type == PromptEnum.chat:
             if not message_request:
                 raise ValueError("message_request is required for chat prompt type")
@@ -273,3 +274,5 @@ class SysPromptClass:
             raise
         logger.info(f"Success get {prompt_type} response from AOAI...")
         return response
+
+# - DO NOT write any introduction, explanation, or additional description before or after the output.

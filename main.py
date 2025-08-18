@@ -489,7 +489,6 @@ async def real_time_ai_service(
                             error_code=500,
                             timestamp=datetime.utcnow().isoformat() + "Z"
                         )
-
                 elif prompt_type == "translate":
                     language = next((lang for lang in TranslationEnum if lang.value == response_language),None)
                     logger.info(f"Sending {language.name} translate prompt...")
@@ -498,7 +497,6 @@ async def real_time_ai_service(
                         prompt_type=prompt_type,
                         response_language=language.name
                     )
-                    logger.info(f"Get translate result {response}...")
                 else:
                     language = next((lang for lang in TranslationEnum if lang.value == response_language), None)
                     logger.info(f"Sending {language.name} summarize prompt...")

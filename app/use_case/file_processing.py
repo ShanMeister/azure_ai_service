@@ -1,5 +1,9 @@
+import io
+import os
 import pymupdf4llm
+import subprocess
 from io import BytesIO
+import tempfile
 import fitz  # PyMuPDF
 # from pymupdf4llm.helpers.pymupdf_rag import extract_markdown_from_doc
 # import pymupdf.pro
@@ -8,6 +12,8 @@ from fastapi import UploadFile
 from docx import Document as DocxDocument
 from docx.text.paragraph import Paragraph
 from docx.table import Table
+from comtypes.client import CreateObject
+import mammoth
 
 
 class FileProcessUseCase:
@@ -25,10 +31,13 @@ class FileProcessUseCase:
                 return pymupdf4llm.to_markdown(doc)
             elif filename.endswith(".docx"):
                 return await self._convert_docx_to_markdown(file_stream)
+            elif filename.endswith(".doc"):
+                doc_to_docx = await self.convert_doc_to_docx_bytesio(file_stream)
+                return await self._convert_docx_to_markdown(doc_to_docx)
             else:
-                raise ValueError("Unsupported file type. Only PDF and DOCX are supported.")
+                raise ValueError("Unsupported file type. Only PDF, DOCX and DOC are supported.")
         except Exception as e:
-            raise RuntimeError(f"Failed to parse file via pymupdf4llm: {e}")
+            raise RuntimeError(f"Failed to parse file: {e}")
 
     async def _convert_docx_to_markdown(self, file_stream: BytesIO) -> str:
         doc = DocxDocument(file_stream)
@@ -80,3 +89,30 @@ class FileProcessUseCase:
         content = ["| " + " | ".join(row) + " |" for row in rows[1:]]
 
         return "\n".join([header, separator] + content)
+
+    async def convert_doc_to_docx_bytesio(self, input_stream: io.BytesIO) -> io.BytesIO:
+        # 1. 先將 BytesIO 寫入暫存 doc 檔案
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".doc") as tmp_doc:
+            tmp_doc.write(input_stream.read())
+            tmp_doc_path = tmp_doc.name
+
+        # 2. 用 Word COM 轉 doc -> docx
+        word = CreateObject("Word.Application")
+        doc = word.Documents.Open(tmp_doc_path)
+        tmp_docx_path = tmp_doc_path + "x"
+        doc.SaveAs(tmp_docx_path, 12)  # 12 = wdFormatDocumentDefault (.docx)
+        doc.Close()
+        word.Quit()
+
+        # 3. 讀 docx 檔案內容為 BytesIO
+        with open(tmp_docx_path, "rb") as docx_file:
+            docx_bytes = docx_file.read()
+
+        # 4. 清理暫存檔案
+        os.remove(tmp_doc_path)
+        os.remove(tmp_docx_path)
+
+        # 5. 回傳 docx BytesIO（output stream）
+        output_stream = io.BytesIO(docx_bytes)
+        output_stream.seek(0)
+        return output_stream
