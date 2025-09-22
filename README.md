@@ -1,2 +1,2 @@
-# NuECS
-backend system of project NuECS
+# Azure AI service
+backend system of project Azure AI service
