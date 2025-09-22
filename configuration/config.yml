@@ -1,0 +1,108 @@
+index_list:
+  - 
+
+sql_type: sqlite # sqlite, mssql
+
+paths:
+  base: 
+  log_dir: logs
+  meta_data_dir:
+    base: meta_data
+    split_dir: split_pdf
+    pkl_dir: pkl
+    table_dir: table
+    figure_dir: figure
+    raw_md_dir: raw_md
+    bundle_md_dir: bundle_md
+  sql_db: knowledge_base.db
+
+indices_dir:
+  base: 
+  index_dir:
+    text_dir:
+      base: text_data
+      wait_dir: wait
+      done_dir: done
+      fail_dir: fail
+    text_image_dir:
+      base: text_image
+      wait_dir: wait
+      done_dir: done
+      fail_dir: fail
+
+backup_root: 
+backup_retention:
+  days: 
+  hours:
+  minutes:
+  seconds:
+
+log_level: 
+
+mssql:
+  driver:
+  server: 
+  database: 
+  username: 
+  password: 
+
+file_splitter:
+  n_pages_per_split:
+
+document_intelligence:
+  endpoint: 
+  api_key: 
+  api_version: 
+  submit_interval: 
+  check_period: 
+  max_wait_time: 
+  batch_size:
+  main_loop_wait: 
+
+embedding:
+  model: 
+  api_version: 
+  endpoint: 
+  api_key: 
+  vector_dimension: 
+
+azure_openai:
+  api_key: 
+  api_version: 
+  endpoint: 
+  deployment: 
+
+image_aoai:
+  api_key: 
+  api_version: 
+  endpoint: 
+  deployment:
+
+azure_ai_search:
+  index_name:
+  endpoint:
+  api_version: 
+  api_key: 
+
+chunking:
+  model_name: 
+  chunk_size: 
+  chunk_overlap: 
+
+tiktoken_cache_dir:
+  cl100k_base: 
+  o200k_base: 
+
+llm:
+  model_provider: 
+  model: 
+  azure_deployment: 
+  azure_endpoint: 
+  api_key: 
+  api_version: 
+
+answer_similarity:
+  tracking_uri: 
+  experiment_name: 
+  model_path: 
+  csv_path: 
